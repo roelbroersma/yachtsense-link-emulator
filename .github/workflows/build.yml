@@ -1,0 +1,65 @@
+name: Build RutOS package
+
+# Validate every branch change and build release artifacts for version tags.
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+# Tag builds need permission to create a release in this repository.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Fetch the exact revision that is being validated.
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      # The native daemon is compiled as a static ARMv7 executable.
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache: true
+
+      # jq validates RutOS JSON descriptors; Lua checks the API module syntax.
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq lua5.1
+
+      # Run unit tests, syntax checks and the real IPK build.
+      - name: Validate and build package
+        run: make check
+
+      # Generate a matching source archive for reproducible releases.
+      - name: Build source archive
+        run: make source
+
+      # Keep the IPK, source archive and SHA-256 files together.
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yachtsense-link-emulator-${{ github.sha }}
+          path: |
+            dist/*.ipk
+            dist/*.sha256
+            dist/*.tar.gz
+          retention-days: 14
+      # Semantic version tags publish the exact IPK, source and checksums.
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            dist/*.ipk dist/*.sha256 dist/*.tar.gz \
+            --verify-tag \
+            --generate-notes \
+            --title "YachtSense Link Emulator ${GITHUB_REF_NAME}"
