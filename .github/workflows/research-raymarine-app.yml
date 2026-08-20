@@ -1,24 +1,29 @@
 name: Research Raymarine Android app
 
 # Research workflow kept off main. It downloads a publicly available Raymarine
-# Android split bundle, extracts protocol-relevant strings and uploads only a
-# text report. No Raymarine APK or decompiled proprietary source is committed.
+# Android split bundle, extracts protocol-relevant strings and writes only text
+# research results back to this branch. No Raymarine APK or decompiled source is
+# committed.
 on:
   push:
     branches: ["research-raymarine-apk"]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   analyze:
+    # The result commit itself must not start another analysis run.
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[research-result]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
       - name: Check out research branch
         uses: actions/checkout@v4
+        with:
+          ref: research-raymarine-apk
 
       - name: Install analysis tools
         run: |
@@ -29,6 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf research/app
           mkdir -p research/app
           cd research/app
 
@@ -91,23 +97,23 @@ jobs:
           Source application: com.raymarine.rayconnect
           Target mirror build: 2.3.13, armeabi-v7 split bundle
 
-          This artifact contains extracted metadata and protocol-relevant
-          strings only. It intentionally excludes APK files and decompiled
-          proprietary source code.
+          This report contains extracted metadata and protocol-relevant strings
+          only. It intentionally excludes APK files and decompiled proprietary
+          source code.
           EOF
 
           cp bundle-files.txt payload-files.txt report/
 
           # Search DEX and native libraries directly. DNS-SD names, network
-          # constants, URLs and log messages are stored as printable strings in
-          # both DEX constant pools and native ELF rodata.
+          # constants, URLs and log messages occur as printable strings in DEX
+          # constant pools and native ELF read-only data.
           find unpacked -type f \( -name 'classes*.dex' -o -name '*.so' \) -print0 |
             xargs -0 strings -a -n 4 2>/dev/null |
             rg -i \
               'yachtsense|yacht.?sense|raymarine|axiom|mfd|mirror|mirroring|remote.?control|bonjour|zeroconf|mdns|dns.?sd|nsdmanager|multicast|_http\._tcp|_.*\._tcp|_.*\._udp|224\.0\.0\.251|5353|7777|9999|198\.18\.|vnc|rfb|websocket|socket|udp|tcp|rtsp|webrtc|discovery|service.?found|service.?lost' \
             | sort -u > report/protocol-strings.txt || true
 
-          # Preserve source file context for every interesting native string.
+          # Preserve which native library contributed each interesting string.
           : > report/native-strings-with-files.txt
           while IFS= read -r -d '' so; do
             strings -a -n 4 "$so" |
@@ -117,25 +123,42 @@ jobs:
           done < <(find unpacked -type f -name '*.so' -print0)
           sort -u -o report/native-strings-with-files.txt report/native-strings-with-files.txt
 
-          # The runner already carries Android SDK build-tools. If dexdump is
-          # available, create a richer DEX dump and filter it to network terms.
+          # GitHub's Android runner includes build-tools. dexdump gives enough
+          # method/class context to map network strings back to app components.
           DEXDUMP="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools" -type f -name dexdump 2>/dev/null | sort -V | tail -1 || true)"
           if [ -n "$DEXDUMP" ]; then
             : > report/dexdump-network.txt
             while IFS= read -r -d '' dex; do
               "$DEXDUMP" -d "$dex" 2>/dev/null |
-                rg -i -C 4 \
+                rg -i -C 5 \
                   'yachtsense|axiom|mfd|mirror|NSD|NsdManager|MulticastLock|mdns|bonjour|zeroconf|5353|7777|9999|198\.18\.|VNC|RFB|discovery|service' \
                 >> report/dexdump-network.txt || true
             done < <(find unpacked -type f -name 'classes*.dex' -print0)
           fi
 
           wc -l report/* > report/line-counts.txt
-          tar -czf raymarine-app-protocol-report.tar.gz -C report .
+
+      - name: Commit text research results to research branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf research/results
+          mkdir -p research/results
+          cp research/app/report/*.txt research/results/
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/results
+          if git diff --cached --quiet; then
+            echo 'Research results unchanged.'
+            exit 0
+          fi
+          git commit -m 'Update Raymarine app protocol research [research-result]'
+          git push origin HEAD:research-raymarine-apk
 
       - name: Upload research report
         uses: actions/upload-artifact@v4
         with:
           name: raymarine-app-protocol-report
-          path: research/app/raymarine-app-protocol-report.tar.gz
+          path: research/app/report/*.txt
           retention-days: 7
