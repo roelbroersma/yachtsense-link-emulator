@@ -20,11 +20,12 @@ config emulator 'main'
 	# Remove only an address that this package added itself.
 	option remove_ip_on_stop '1'
 
-	# Identity published in the DNS-SD TXT and host records.
+	# Identity published in DNS-SD. These defaults mirror an actual YachtSense
+	# Link: hostname "yachtsense-main" and the "<hostname> Settings" instance.
 	option serial 'AF002A4'
 	option version 'V142.242.530'
-	option hostname 'yachtsense-link'
-	option instance 'YachtSense Link Settings'
+	option hostname 'yachtsense-main'
+	option instance 'yachtsense-main Settings'
 	option ttl '120'
 
 	# HTTP endpoint used by the Axiom connection monitor and WebUI log length.
