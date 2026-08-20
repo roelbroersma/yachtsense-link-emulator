@@ -1,60 +1,77 @@
 name: Research Raymarine APK
 
 on:
-  push:
-    branches: ["research-raymarine-apk"]
   workflow_dispatch:
+  push:
+    branches:
+      - research-raymarine-apk
+    paths:
+      - .github/workflows/research-raymarine-apk.yml
 
 permissions:
   contents: write
 
 jobs:
   analyze:
-    if: ${{ !contains(github.event.head_commit.message || '', '[research-result]') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: research-raymarine-apk
+          fetch-depth: 0
 
       - name: Download Raymarine Android app
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p research/download
+          mkdir -p research/download research/report
           cd research/download
-          if ! curl -fL --retry 3 --retry-delay 3 -A 'Mozilla/5.0' \
+          # Prefer the current app bundle; fall back to a known official-signed
+          # 2.1.1 APK if the mirror blocks its latest-version endpoint.
+          if curl -fL --retry 3 --retry-delay 3 -A 'Mozilla/5.0' \
             'https://d.apkpure.com/b/XAPK/com.raymarine.rayconnect?version=latest' \
-            -o raymarine.xapk; then
-            curl -fL --retry 3 --retry-delay 3 -A 'Mozilla/5.0' \
-              'https://apk.dog/download?split=474663%2F3414916%2Frayconnect-by-raymarine' \
-              -o raymarine.xapk
+            -o raymarine.bundle; then
+            echo current-xapk > ../report/download-source.txt
+          elif curl -fL --retry 3 --retry-delay 3 -A 'Mozilla/5.0' \
+            'https://d.apkpure.net/b/APK/com.raymarine.rayconnect?nc=arm64-v8a%2Carmeabi-v7a%2Cx86%2Cx86_64&sv=26&versionCode=528' \
+            -o raymarine.bundle; then
+            echo apkpure-2.1.1-apk > ../report/download-source.txt
+          else
+            exit 1
           fi
-          ls -lh raymarine.xapk
-          file raymarine.xapk
-          unzip -t raymarine.xapk | tail -n 5
+          ls -lh raymarine.bundle
+          file raymarine.bundle | tee ../report/download-file.txt
 
       - name: Extract bundle and identify APKs
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p research/xapk research/report
-          unzip -q research/download/raymarine.xapk -d research/xapk
+          mkdir -p research/xapk
+          if unzip -t research/download/raymarine.bundle >/dev/null 2>&1; then
+            if unzip -Z1 research/download/raymarine.bundle | grep -qE '\.apk$'; then
+              unzip -q research/download/raymarine.bundle -d research/xapk
+            else
+              cp research/download/raymarine.bundle research/xapk/com.raymarine.rayconnect.apk
+            fi
+          else
+            cp research/download/raymarine.bundle research/xapk/com.raymarine.rayconnect.apk
+          fi
           find research/xapk -type f -name '*.apk' -printf '%p\n' | sort | tee research/report/apks.txt
           BASE="$(find research/xapk -type f \( -name 'base.apk' -o -name 'com.raymarine.rayconnect.apk' \) | head -n1)"
           if [ -z "$BASE" ]; then BASE="$(find research/xapk -type f -name '*.apk' | head -n1)"; fi
           test -n "$BASE"
           echo "$BASE" | tee research/report/base-apk.txt
-          sha256sum research/download/raymarine.xapk "$BASE" | tee research/report/sha256.txt
+          sha256sum research/download/raymarine.bundle "$BASE" | tee research/report/sha256.txt
 
       - name: Install JADX
-        shell: bash
         run: |
           set -euxo pipefail
           curl -fL --retry 3 'https://github.com/skylot/jadx/releases/download/v1.5.2/jadx-1.5.2.zip' -o /tmp/jadx.zip
           unzip -q /tmp/jadx.zip -d /tmp/jadx
-          /tmp/jadx/bin/jadx --version
+          /tmp/jadx/bin/jadx --version | tee research/report/jadx-version.txt
 
       - name: Decompile application
-        shell: bash
         run: |
           set -euxo pipefail
           BASE="$(cat research/report/base-apk.txt)"
@@ -63,7 +80,6 @@ jobs:
           find research/jadx -type f | wc -l | tee research/report/jadx-file-count.txt
 
       - name: Extract native libraries and resources
-        shell: bash
         run: |
           set -euxo pipefail
           mkdir -p research/unpacked
@@ -74,7 +90,6 @@ jobs:
           find research/unpacked -type f -name '*.so' -printf '%p\n' | sort | tee research/report/native-libs.txt
 
       - name: Search discovery and mirroring implementation
-        shell: bash
         run: |
           set -euxo pipefail
           PATTERN='YachtSense|Yachtsense|yachtsense|MFD|mfd|NsdManager|DnsSd|DNS-SD|mDNS|mdns|Bonjour|zeroconf|_http\._tcp|_ray|RayNet|multicast|Multicast|224\.0\.0\.251|5353|7777|VNC|vnc|RFB|rfb|RTSP|rtsp|mirror|Mirror|screen.?stream|streaming|5900|5901|discover|Discovery|serviceFound|DatagramSocket|MulticastSocket|NetworkInterface|WifiManager'
@@ -85,45 +100,48 @@ jobs:
             echo '=== RESOURCE / CONFIG HITS ==='
             grep -RniE --binary-files=without-match "$PATTERN" research/unpacked 2>/dev/null | head -n 12000 || true
           } > research/report/interesting.txt
-
           echo '=== NATIVE STRING HITS ===' > research/report/native-strings.txt
           while IFS= read -r so; do
             echo "--- $so ---" >> research/report/native-strings.txt
             strings -a "$so" | grep -iE 'yachtsense|raymarine|mfd|mdns|dns.?sd|bonjour|zeroconf|_http\._tcp|multicast|224\.0\.0\.251|5353|7777|vnc|rfb|rtsp|mirror|stream|5900|5901|discov' | sort -u | head -n 2000 >> research/report/native-strings.txt || true
           done < research/report/native-libs.txt
 
-      - name: Collect likely implementation files and excerpts
-        shell: bash
+      - name: Collect focused source excerpts
         run: |
           set -euxo pipefail
-          mkdir -p research/selected
           grep -RilE --binary-files=without-match 'YachtSense|NsdManager|DnsSd|mDNS|_http\._tcp|VNC|RFB|RTSP|mirror|screen.?stream|MulticastSocket|DatagramSocket' research/jadx 2>/dev/null | head -n 300 > research/report/selected-files.txt || true
           : > research/report/source-excerpts.txt
           while IFS= read -r f; do
             [ -f "$f" ] || continue
-            rel="${f#research/jadx/}"
-            mkdir -p "research/selected/$(dirname "$rel")"
-            cp "$f" "research/selected/$rel"
-            echo "===== $rel =====" >> research/report/source-excerpts.txt
-            grep -nEi -C 8 'YachtSense|NsdManager|DnsSd|mDNS|_http\._tcp|VNC|RFB|RTSP|mirror|screen.?stream|MulticastSocket|DatagramSocket' "$f" >> research/report/source-excerpts.txt || true
+            echo "===== ${f#research/jadx/} =====" >> research/report/source-excerpts.txt
+            grep -nEi -C 10 'YachtSense|NsdManager|DnsSd|mDNS|_http\._tcp|VNC|RFB|RTSP|mirror|screen.?stream|MulticastSocket|DatagramSocket' "$f" >> research/report/source-excerpts.txt || true
           done < research/report/selected-files.txt
-          tar -czf research/raymarine-selected-sources.tar.gz -C research selected report
 
-      - name: Upload analysis
-        uses: actions/upload-artifact@v4
-        with:
-          name: raymarine-apk-analysis
-          path: |
-            research/report/**
-            research/raymarine-selected-sources.tar.gz
-          retention-days: 3
-
-      - name: Commit text research report to temporary branch
+      - name: Publish report to research branch
+        if: always()
         shell: bash
         run: |
-          set -euxo pipefail
+          set -u
+          {
+            echo "published_at=$(date -u +%FT%TZ)"
+            echo "source_commit=${GITHUB_SHA}"
+            echo "run_id=${GITHUB_RUN_ID}"
+          } > research/report/workflow-status.txt
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f research/report
-          git commit -m '[research-result] Store Raymarine APK analysis' || exit 0
-          git push origin HEAD:research-raymarine-apk
+          git commit -m 'Publish Raymarine APK research results' || exit 0
+          for attempt in 1 2 3; do
+            git pull --rebase origin research-raymarine-apk && git push origin HEAD:research-raymarine-apk && exit 0
+            sleep 3
+          done
+          exit 1
+
+      - name: Upload analysis artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: raymarine-apk-analysis
+          path: research/report/
+          if-no-files-found: warn
+          retention-days: 3
