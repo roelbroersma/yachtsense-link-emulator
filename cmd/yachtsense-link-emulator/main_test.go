@@ -32,7 +32,7 @@ func TestBuildAnnouncement(t *testing.T) {
 		Serial:    "AF002A4",
 		Version:   "V142.242.530",
 		HostLabel: "yachtsense",
-		Instance:  "YachtSense Link Settings",
+		Instance:  "yachtsense-main Settings",
 	}
 	iface := &net.Interface{HardwareAddr: net.HardwareAddr{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}}
 
