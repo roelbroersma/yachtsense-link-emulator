@@ -21,7 +21,7 @@ config emulator 'main'
 	option remove_ip_on_stop '1'
 
 	# Identity published in the DNS-SD TXT and host records.
-	option serial 'RUTX001'
+	option serial 'AF002A4'
 	option version 'V142.242.530'
 	option hostname 'yachtsense-link'
 	option instance 'YachtSense Link Settings'
