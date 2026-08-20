@@ -35,7 +35,7 @@ jobs:
           echo "XAPK_SHA256=$(sha256sum raymarine.xapk | cut -d' ' -f1)"
           unzip -t raymarine.xapk
           unzip -q raymarine.xapk -d xapk
-          find xapk -type f -maxdepth 2 -printf '%p %s\n' | sort -k2nr | head -30
+          find xapk -maxdepth 2 -type f -printf '%p %s\n' | sort -k2nr | head -40
 
       - name: Select base APK and decompile
         shell: bash
@@ -83,26 +83,48 @@ jobs:
             echo "base_apk=$(cat base-apk.txt)"
             echo
             echo '=== NSD service constants ==='
-            grep -RniE --include='*.java' '_services\._dns-sd\._udp|_http\._tcp|_raydb\._tcp|_rtsp\._tcp|_rym_rrc\._tcp' "$ROOT/device/mfd" | head -100 || true
+            grep -RniE --include='*.java' '_services\._dns-sd\._udp|_http\._tcp|_raydb\._tcp|_rtsp\._tcp|_rym_rrc\._tcp' "$ROOT/device/mfd" | head -120 || true
             echo
             echo '=== Remote view/control constants ==='
-            grep -RniE --include='*.java' 'DISABLE_PORT|TOUCHABLE_PORT|VIEW_ONLY_PORT|49111|50000|8554|RAYMARINEMFD|rtsp://' "$ROOT/device/mfd" "$ROOT/modules/mfd/rayview" "$ROOT/rayview" | head -160 || true
+            grep -RniE --include='*.java' 'DISABLE_PORT|TOUCHABLE_PORT|VIEW_ONLY_PORT|49111|50000|8554|RAYMARINEMFD|rtsp://' "$ROOT/device/mfd" "$ROOT/modules/mfd/rayview" "$ROOT/rayview" | head -200 || true
             echo
             echo '=== YachtSense recognition names ==='
-            grep -RniE --include='*.java' 'yachtsense-main|imx8mmevk|RDS WebServer|raymarinerds|CloudConnector' "$ROOT/domain/hardware" "$ROOT/device/mfd" | head -160 || true
+            grep -RniE --include='*.java' 'yachtsense-main|imx8mmevk|RDS WebServer|raymarinerds|CloudConnector' "$ROOT/domain/hardware" "$ROOT/device/mfd" | head -200 || true
             echo
             echo '=== Touch/control JNI ==='
-            grep -RniE --include='*.java' 'externalConnect|externalSendTouch|TouchEvent|TOUCH_DOWN|TOUCH_MOVED|TOUCH_UP' "$ROOT/device/mfd/control" | head -180 || true
+            grep -RniE --include='*.java' 'externalConnect|externalSendTouch|TouchEvent|TOUCH_DOWN|TOUCH_MOVED|TOUCH_UP' "$ROOT/device/mfd/control" | head -220 || true
           } > "$OUT/fingerprint.txt"
 
-          # Also inspect native library strings for the TCP control implementation.
-          BASE="$(cat base-apk.txt)"
-          mkdir -p native
-          unzip -q -o "$BASE" 'lib/*/librrccpp.so' -d native || true
+          # Trace how a discovered YachtSense candidate is verified and how the
+          # application reaches the display-mirroring flow. This is deliberately
+          # grep/context output rather than redistributed source files.
+          {
+            echo '=== YachtSense status/onboarding HTTP path ==='
+            grep -RniE -C 8 --include='*.java' \
+              '7777|status\(|OnboardDriver|CloudConnectorOnboardDriver|routerPort|baseUrl|http://|https://|NetworkDeviceType.YachtSenseLink|HardwareType.YachtSenseLink' \
+              "$ROOT/device/mfd/cloudconnector" "$ROOT/domain/hardware/router" "$ROOT/domain/hardware" 2>/dev/null | head -2600 || true
+            echo
+            echo '=== Display mirroring navigation/gating ==='
+            grep -RniE -C 8 --include='*.java' \
+              'Display.?mirroring|RayView|RayControl|searchRayControlDevices|startRtpsSearch|lookup\(|YachtSenseLink|boat system|BoatSystem|connected.*router|router.*connected' \
+              "$ROOT/modules" "$ROOT/domain" "$ROOT/device" 2>/dev/null | head -3200 || true
+            echo
+            echo '=== Exact RTSP service merge logic ==='
+            sed -n '1115,1205p' "$ROOT/device/mfd/control/RaymarineControlDriverImpl.java" 2>/dev/null || true
+          } > "$OUT/router-and-mirroring.txt"
+
+          # Find the native control library in every XAPK split, not just base.
+          rm -rf native-apks
+          mkdir -p native-apks
           : > "$OUT/native-control.txt"
-          find native -type f -name librrccpp.so -print0 | while IFS= read -r -d '' f; do
+          while IFS= read -r -d '' apk; do
+            d="native-apks/$(basename "$apk")"
+            mkdir -p "$d"
+            unzip -q -o "$apk" 'lib/*/librrccpp.so' -d "$d" 2>/dev/null || true
+          done < <(find xapk -type f -name '*.apk' -print0)
+          find native-apks -type f -name librrccpp.so -print0 | while IFS= read -r -d '' f; do
             echo "=== $f ===" >> "$OUT/native-control.txt"
-            strings -a -n 4 "$f" | grep -E 'externalConnect|externalSendTouch|RcSocket|connectToHost' | sort -u >> "$OUT/native-control.txt" || true
+            strings -a -n 4 "$f" | grep -E 'externalConnect|externalSendTouch|RcSocket|connectToHost|readSocket|write' | sort -u >> "$OUT/native-control.txt" || true
           done
 
       - name: Commit text-only fingerprint
@@ -112,6 +134,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f research/current
-          git commit -m 'Publish current Raymarine app protocol fingerprint [research-result]' || exit 0
+          git commit -m 'Trace current Raymarine router and mirroring flow [research-result]' || exit 0
           git pull --rebase origin research-raymarine-apk
           git push origin HEAD:research-raymarine-apk
