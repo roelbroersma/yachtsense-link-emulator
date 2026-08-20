@@ -1,0 +1,117 @@
+name: Analyze current Raymarine Android app
+
+# Research-only workflow. Downloads the current public XAPK and records only
+# protocol constants/fingerprints; it never commits the APK or decompiled code.
+on:
+  push:
+    branches: ["research-raymarine-apk"]
+    paths:
+      - .github/workflows/research-raymarine-current.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research-raymarine-apk
+          fetch-depth: 0
+
+      - name: Download current Raymarine XAPK
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/raycurrent
+          mkdir -p /tmp/raycurrent
+          cd /tmp/raycurrent
+          curl -fL --retry 3 --retry-delay 3 -A 'Mozilla/5.0' \
+            'https://d.apkpure.net/b/XAPK/com.raymarine.rayconnect?version=latest' \
+            -o raymarine.xapk
+          echo "XAPK_SHA256=$(sha256sum raymarine.xapk | cut -d' ' -f1)"
+          unzip -t raymarine.xapk
+          unzip -q raymarine.xapk -d xapk
+          find xapk -type f -maxdepth 2 -printf '%p %s\n' | sort -k2nr | head -30
+
+      - name: Select base APK and decompile
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/raycurrent
+          python3 - <<'PY' > base-apk.txt
+          import pathlib, zipfile
+          candidates=[]
+          for p in pathlib.Path('xapk').rglob('*.apk'):
+              try:
+                  with zipfile.ZipFile(p) as z:
+                      names=z.namelist()
+                      dex=sum(1 for n in names if n.startswith('classes') and n.endswith('.dex'))
+                      if dex:
+                          candidates.append((dex,p.stat().st_size,str(p)))
+              except Exception:
+                  pass
+          if not candidates:
+              raise SystemExit('No APK containing classes*.dex found')
+          candidates.sort(reverse=True)
+          print(candidates[0][2])
+          PY
+          BASE="$(cat base-apk.txt)"
+          echo "BASE=$BASE"
+          curl -fL --retry 3 \
+            'https://github.com/skylot/jadx/releases/download/v1.5.2/jadx-1.5.2.zip' \
+            -o jadx.zip
+          unzip -q jadx.zip -d jadx-bin
+          ./jadx-bin/bin/jadx -j 4 --no-res --show-bad-code -d jadx "$BASE" || true
+
+      - name: Record current protocol fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/raycurrent
+          OUT="$GITHUB_WORKSPACE/research/current"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          ROOT=jadx/sources/com/raymarine/rayconnect
+          {
+            echo 'Raymarine Android current-version protocol fingerprint'
+            echo "generated=$(date -u +%FT%TZ)"
+            echo "xapk_sha256=$(sha256sum raymarine.xapk | cut -d' ' -f1)"
+            echo "base_apk=$(cat base-apk.txt)"
+            echo
+            echo '=== NSD service constants ==='
+            grep -RniE --include='*.java' '_services\._dns-sd\._udp|_http\._tcp|_raydb\._tcp|_rtsp\._tcp|_rym_rrc\._tcp' "$ROOT/device/mfd" | head -100 || true
+            echo
+            echo '=== Remote view/control constants ==='
+            grep -RniE --include='*.java' 'DISABLE_PORT|TOUCHABLE_PORT|VIEW_ONLY_PORT|49111|50000|8554|RAYMARINEMFD|rtsp://' "$ROOT/device/mfd" "$ROOT/modules/mfd/rayview" "$ROOT/rayview" | head -160 || true
+            echo
+            echo '=== YachtSense recognition names ==='
+            grep -RniE --include='*.java' 'yachtsense-main|imx8mmevk|RDS WebServer|raymarinerds|CloudConnector' "$ROOT/domain/hardware" "$ROOT/device/mfd" | head -160 || true
+            echo
+            echo '=== Touch/control JNI ==='
+            grep -RniE --include='*.java' 'externalConnect|externalSendTouch|TouchEvent|TOUCH_DOWN|TOUCH_MOVED|TOUCH_UP' "$ROOT/device/mfd/control" | head -180 || true
+          } > "$OUT/fingerprint.txt"
+
+          # Also inspect native library strings for the TCP control implementation.
+          BASE="$(cat base-apk.txt)"
+          mkdir -p native
+          unzip -q -o "$BASE" 'lib/*/librrccpp.so' -d native || true
+          : > "$OUT/native-control.txt"
+          find native -type f -name librrccpp.so -print0 | while IFS= read -r -d '' f; do
+            echo "=== $f ===" >> "$OUT/native-control.txt"
+            strings -a -n 4 "$f" | grep -E 'externalConnect|externalSendTouch|RcSocket|connectToHost' | sort -u >> "$OUT/native-control.txt" || true
+          done
+
+      - name: Commit text-only fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f research/current
+          git commit -m 'Publish current Raymarine app protocol fingerprint [research-result]' || exit 0
+          git pull --rebase origin research-raymarine-apk
+          git push origin HEAD:research-raymarine-apk
