@@ -24,8 +24,10 @@ load_settings() {
 	config_get_bool remove_ip_on_stop main remove_ip_on_stop 1
 	config_get serial main serial 'AF002A4'
 	config_get version main version 'V142.242.530'
-	config_get hostname main hostname 'yachtsense-link'
-	config_get instance main instance 'YachtSense Link Settings'
+	# Match the real YachtSense Link Avahi identity. The Raymarine mobile app
+	# also classifies onboard _http._tcp services by the yachtsense-main name.
+	config_get hostname main hostname 'yachtsense-main'
+	config_get instance main instance 'yachtsense-main Settings'
 	config_get ttl main ttl '120'
 	config_get health_port main health_port '7777'
 }
