@@ -95,9 +95,6 @@ jobs:
             grep -RniE --include='*.java' 'externalConnect|externalSendTouch|TouchEvent|TOUCH_DOWN|TOUCH_MOVED|TOUCH_UP' "$ROOT/device/mfd/control" | head -220 || true
           } > "$OUT/fingerprint.txt"
 
-          # Trace how a discovered YachtSense candidate is verified and how the
-          # application reaches the display-mirroring flow. This is deliberately
-          # grep/context output rather than redistributed source files.
           {
             echo '=== YachtSense status/onboarding HTTP path ==='
             grep -RniE -C 8 --include='*.java' \
@@ -112,6 +109,28 @@ jobs:
             echo '=== Exact RTSP service merge logic ==='
             sed -n '1115,1205p' "$ROOT/device/mfd/control/RaymarineControlDriverImpl.java" 2>/dev/null || true
           } > "$OUT/router-and-mirroring.txt"
+
+          # Extract only the JSON-relevant field/constructor/getter schema used
+          # when HTTP :7777 returns DeviceStatus.Success. This tells the emulator
+          # what body the mobile app expects without copying the class itself.
+          python3 - <<'PY' > "$OUT/device-status-schema.txt"
+          from pathlib import Path
+          import re
+          root=Path('jadx/sources/com/raymarine/rayconnect')
+          targets=[
+              root/'domain/hardware/router/DeviceStatus.java',
+              root/'device/mfd/cloudconnector/CloudConnectorOnboardDriverImpl.java'
+          ]
+          for p in targets:
+              print('FILE', p.relative_to(root))
+              if not p.exists():
+                  print('MISSING')
+                  continue
+              lines=p.read_text(errors='ignore').splitlines()
+              for i,line in enumerate(lines,1):
+                  if re.search(r'(@SerializedName|@Expose|class Success|class Failure|private final|public Success\(|public Failure\(|public final .* get[A-Z]|new URL\(|getResponseCode\(|fromJson\(|DeviceStatus\.Success)',line):
+                      print(f'{i}: {line.strip()}')
+          PY
 
           # Find the native control library in every XAPK split, not just base.
           rm -rf native-apks
@@ -134,6 +153,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f research/current
-          git commit -m 'Trace current Raymarine router and mirroring flow [research-result]' || exit 0
+          git commit -m 'Extract current YachtSense status JSON schema [research-result]' || exit 0
           git pull --rebase origin research-raymarine-apk
           git push origin HEAD:research-raymarine-apk
