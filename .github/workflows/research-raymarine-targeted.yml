@@ -1,0 +1,142 @@
+name: Targeted Raymarine MFD protocol analysis
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["research-raymarine-apk"]
+    paths:
+      - .github/workflows/research-raymarine-targeted.yml
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research-raymarine-apk
+          fetch-depth: 0
+
+      - name: Download known Raymarine APK and JADX
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/raytarget
+          mkdir -p /tmp/raytarget
+          curl -fL --retry 3 --retry-delay 3 -A 'Mozilla/5.0' \
+            'https://d.apkpure.net/b/APK/com.raymarine.rayconnect?nc=arm64-v8a%2Carmeabi-v7a%2Cx86%2Cx86_64&sv=26&versionCode=528' \
+            -o /tmp/raytarget/raymarine.apk
+          curl -fL --retry 3 \
+            'https://github.com/skylot/jadx/releases/download/v1.5.2/jadx-1.5.2.zip' \
+            -o /tmp/raytarget/jadx.zip
+          unzip -q /tmp/raytarget/jadx.zip -d /tmp/raytarget/jadx-bin
+          /tmp/raytarget/jadx-bin/bin/jadx -j 4 --no-res --show-bad-code \
+            -d /tmp/raytarget/jadx /tmp/raytarget/raymarine.apk || true
+
+      - name: Extract focused Raymarine protocol evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/raytarget/jadx/sources/com/raymarine/rayconnect
+          OUT=research/targeted
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+
+          cat > "$OUT/targets.txt" <<'EOF'
+          device/mfd/NsdHardwareSearchDriver.java
+          device/mfd/NsdDiscoveryExecutor.java
+          device/mfd/NsdDiscoveryListener.java
+          device/mfd/NetworkHardwareSearchDriver.java
+          device/mfd/control/RaymarineControlDriverImpl.java
+          device/mfd/control/RaymarineControlDriver.java
+          modules/mfd/rayview/RayViewViewModelImpl.java
+          modules/mfd/rayview/RayControlActivity.java
+          modules/mfd/rayview/ScanRayDevicesView.java
+          rayview/gstreamer/GStreamerManager.java
+          domain/hardware/Raymarine_hardware_utilsKt.java
+          domain/hardware/router/OnboardHardwareSearchManager.java
+          domain/hardware/router/CloudConnectorDevice.java
+          domain/boat/YachtSenseLinkNetworkInfo.java
+          device/mfd/cloudconnector/CloudConnectorOnboardDriverImpl.java
+          device/mfd/n2k/N2KOkHttpWebSocketBridge.java
+          device/rayDevices/RayDevicesManager.java
+          EOF
+
+          # Store only matching lines and nearby declarations, never whole files.
+          : > "$OUT/protocol-lines.txt"
+          while IFS= read -r rel; do
+            f="$ROOT/$rel"
+            [ -f "$f" ] || continue
+            echo "===== $rel =====" >> "$OUT/protocol-lines.txt"
+            grep -nEi -C 5 \
+              'discoverServices|resolveService|getServiceType|getServiceName|getHost|getPort|NsdManager|_tcp|_udp|rtsp://|rtspsrc|gst_parse|GStreamer|Socket\(|Datagram|connect\(|port|RayControl|RayView|REMOTE|CONTROL|STREAM|video|touch|websocket|ws://|wss://|198\.18\.|YachtSense|CloudConnector' \
+              "$f" >> "$OUT/protocol-lines.txt" || true
+            echo >> "$OUT/protocol-lines.txt"
+          done < "$OUT/targets.txt"
+
+          # Enumerate quoted literals only from Raymarine MFD/RayView packages.
+          python3 - <<'PY' > "$OUT/string-literals.txt"
+          import pathlib, re
+          root = pathlib.Path('/tmp/raytarget/jadx/sources/com/raymarine/rayconnect')
+          targets = [
+              root/'device/mfd', root/'modules/mfd/rayview', root/'rayview',
+              root/'domain/hardware', root/'domain/boat'
+          ]
+          interest = re.compile(r'(?i)(_tcp|_udp|rtsp|rtspsrc|gst|socket|port|discover|rayview|raycontrol|mfd|yachtsense|cloudconnector|websocket|198\.18\.|224\.0\.0\.251|5353|7777|5900|554)')
+          for base in targets:
+              if not base.exists(): continue
+              for p in sorted(base.rglob('*.java')):
+                  text = p.read_text(errors='ignore')
+                  vals=[]
+                  for m in re.finditer(r'"((?:\\.|[^"\\])*)"', text):
+                      s=m.group(1)
+                      if interest.search(s) and s not in vals:
+                          vals.append(s)
+                  if vals:
+                      print(f'[{p.relative_to(root)}]')
+                      for s in vals:
+                          print(s)
+          PY
+
+          # Look for numeric constants near network/control vocabulary.
+          grep -RniE -C 3 --include='*.java' \
+            '(port|PORT|rtsp|RTSP|socket|Socket|connect|CONTROL|STREAM|RayView|RayControl).{0,100}[=:,( ]+[0-9]{2,5}|[0-9]{2,5}.{0,100}(port|PORT|rtsp|socket|CONTROL|STREAM)' \
+            "$ROOT/device/mfd" "$ROOT/modules/mfd/rayview" "$ROOT/rayview" \
+            > "$OUT/numeric-network-context.txt" || true
+
+          # Native Raymarine-specific libraries often contain transport strings
+          # even when Java calls them through JNI.
+          mkdir -p /tmp/raytarget/unpacked
+          unzip -q -o /tmp/raytarget/raymarine.apk 'lib/armeabi-v7a/*' -d /tmp/raytarget/unpacked
+          : > "$OUT/native-raymarine-strings.txt"
+          for so in /tmp/raytarget/unpacked/lib/armeabi-v7a/libRayDBRemoteClient.so \
+                    /tmp/raytarget/unpacked/lib/armeabi-v7a/librrccpp.so \
+                    /tmp/raytarget/unpacked/lib/armeabi-v7a/libraydb.so \
+                    /tmp/raytarget/unpacked/lib/armeabi-v7a/libownerrequest.so \
+                    /tmp/raytarget/unpacked/lib/armeabi-v7a/libgstreamer_android.so; do
+            [ -f "$so" ] || continue
+            echo "===== $(basename "$so") =====" >> "$OUT/native-raymarine-strings.txt"
+            strings -a -n 4 "$so" | grep -iE \
+              'raymarine|mfd|rayview|raycontrol|rtsp|rtspsrc|gst|tcp|udp|socket|port|discover|websocket|http|198\.18\.|224\.0\.0\.251|5353|7777|5900|554' \
+              | sort -u | head -n 500 >> "$OUT/native-raymarine-strings.txt" || true
+          done
+
+          {
+            echo "apk_sha256=$(sha256sum /tmp/raytarget/raymarine.apk | cut -d' ' -f1)"
+            echo "generated_at=$(date -u +%FT%TZ)"
+            wc -l "$OUT"/*.txt
+          } > "$OUT/status.txt"
+
+      - name: Publish focused report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f research/targeted
+          git commit -m 'Publish targeted Raymarine MFD protocol findings' || exit 0
+          git pull --rebase origin research-raymarine-apk
+          git push origin HEAD:research-raymarine-apk
