@@ -1,7 +1,8 @@
 name: Raymarine app protocol research
 
-# Temporary research workflow. It runs only for the dedicated APK research
-# branch and uploads text-only protocol findings; no APK content is committed.
+# Temporary PR-only research workflow. It decompiles the known downloadable
+# Raymarine Android build and prints only focused protocol evidence to the job
+# log. No APK or proprietary decompiled source is committed to main.
 on:
   pull_request:
     branches: ["main"]
@@ -13,103 +14,77 @@ jobs:
   analyze:
     if: ${{ github.head_ref == 'research-raymarine-apk' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
 
     steps:
-      - name: Check out pull request
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends curl unzip file binutils ripgrep python3
-
-      - name: Download Raymarine 2.3.13 armeabi-v7 split bundle
+      - name: Download and decompile Raymarine 2.1.1
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/raymarine
-          cd /tmp/raymarine
-          PAGE='https://apk.dog/download?split=474662%2F3414916%2Frayconnect-by-raymarine'
-          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/151 Safari/537.36'
-          curl -fsSL -A "$UA" "$PAGE" -o page.html
-          python3 - <<'PY' > go-url.txt
-          import html, re
-          from urllib.parse import urljoin
-          text = open('page.html', encoding='utf-8', errors='ignore').read()
-          links = re.findall(r'href=["\']([^"\']*?/go/\?b=[^"\']+)["\']', text)
-          if not links:
-              raise SystemExit('No APK.DOG /go/?b= link found')
-          print(urljoin('https://apk.dog/', html.unescape(links[0])))
+          curl -fL --retry 3 --retry-delay 3 -A 'Mozilla/5.0' \
+            'https://d.apkpure.net/b/APK/com.raymarine.rayconnect?nc=arm64-v8a%2Carmeabi-v7a%2Cx86%2Cx86_64&sv=26&versionCode=528' \
+            -o /tmp/raymarine/raymarine.apk
+          echo "APK SHA256: $(sha256sum /tmp/raymarine/raymarine.apk | cut -d' ' -f1)"
+          curl -fL --retry 3 \
+            'https://github.com/skylot/jadx/releases/download/v1.5.2/jadx-1.5.2.zip' \
+            -o /tmp/raymarine/jadx.zip
+          unzip -q /tmp/raymarine/jadx.zip -d /tmp/raymarine/jadx-bin
+          /tmp/raymarine/jadx-bin/bin/jadx -j 4 --no-res --show-bad-code \
+            -d /tmp/raymarine/jadx /tmp/raymarine/raymarine.apk || true
+
+      - name: Print exact discovery and remote-control evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/raymarine/jadx/sources/com/raymarine/rayconnect
+
+          echo '=== Raymarine NSD / MFD discovery classes ==='
+          find "$ROOT" -type f \( \
+            -name 'NsdHardwareSearchDriver.java' -o \
+            -name 'NsdDiscoveryExecutor.java' -o \
+            -name 'NsdDiscoveryListener.java' -o \
+            -name 'NetworkHardwareSearchDriver.java' \
+          \) -print
+
+          echo '=== Discovery constants and calls ==='
+          grep -RniE -C 8 --include='*.java' \
+            'discoverServices|resolveService|getServiceType|getServiceName|getHost|getPort|NsdManager|SERVICE_TYPE|_tcp|_udp' \
+            "$ROOT/device/mfd" | head -n 1600 || true
+
+          echo '=== RayView / RTSP / GStreamer evidence ==='
+          grep -RniE -C 8 --include='*.java' \
+            'rtsp://|rtspsrc|GStreamer|pipeline|video|stream|RayView|RayControl|controlDriver|setMfd|connect' \
+            "$ROOT/modules/mfd/rayview" "$ROOT/rayview" "$ROOT/device/mfd/control" \
+            | head -n 2200 || true
+
+          echo '=== Interesting quoted literals ==='
+          python3 - <<'PY'
+          import pathlib,re
+          root=pathlib.Path('/tmp/raymarine/jadx/sources/com/raymarine/rayconnect')
+          bases=[root/'device/mfd',root/'modules/mfd/rayview',root/'rayview',root/'domain/hardware',root/'domain/boat']
+          rx=re.compile(r'(?i)(_tcp|_udp|rtsp|rtspsrc|gst|socket|port|discover|rayview|raycontrol|mfd|yachtsense|cloudconnector|websocket|198\.18\.|224\.0\.0\.251|5353|7777|5900|554)')
+          for base in bases:
+              if not base.exists(): continue
+              for p in sorted(base.rglob('*.java')):
+                  vals=[]
+                  for s in re.findall(r'"((?:\\.|[^"\\])*)"',p.read_text(errors='ignore')):
+                      if rx.search(s) and s not in vals: vals.append(s)
+                  if vals:
+                      print('FILE',p.relative_to(root))
+                      for s in vals: print('  LITERAL',s)
           PY
-          curl -fL --retry 3 --retry-delay 2 -A "$UA" "$(cat go-url.txt)" -o Raymarine.zip
-          unzip -t Raymarine.zip
-          unzip -q Raymarine.zip -d bundle
-          find bundle -type f -printf '%p\t%s bytes\n' | sort > bundle-files.txt
 
-      - name: Extract APK payloads
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd /tmp/raymarine
-          mkdir unpacked
-          while IFS= read -r -d '' f; do
-            if file "$f" | grep -q 'Zip archive data'; then
-              d="unpacked/$(basename "$f" | tr ' /' '__')"
-              mkdir -p "$d"
-              unzip -q -o "$f" -d "$d" || true
-            fi
-          done < <(find bundle -type f -print0)
-          find unpacked -type f \( -name 'classes*.dex' -o -name '*.so' -o -name 'AndroidManifest.xml' \) \
-            -printf '%p\t%s bytes\n' | sort > payload-files.txt
-
-      - name: Extract network and discovery evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd /tmp/raymarine
-          mkdir report
-          cp bundle-files.txt payload-files.txt report/
-
-          find unpacked -type f \( -name 'classes*.dex' -o -name '*.so' \) -print0 |
-            xargs -0 strings -a -n 4 2>/dev/null |
-            rg -i 'yachtsense|yacht.?sense|raymarine|axiom|mfd|mirror|mirroring|remote.?control|bonjour|zeroconf|mdns|dns.?sd|nsdmanager|multicast|_http\._tcp|_.*\._tcp|_.*\._udp|224\.0\.0\.251|5353|7777|9999|198\.18\.|vnc|rfb|websocket|socket|udp|tcp|rtsp|webrtc|discovery|service.?found|service.?lost' |
-            sort -u > report/protocol-strings.txt || true
-
-          : > report/native-strings-with-files.txt
-          while IFS= read -r -d '' so; do
-            strings -a -n 4 "$so" |
-              rg -i 'yachtsense|axiom|mfd|mirror|bonjour|zeroconf|mdns|dns.?sd|_http\._tcp|224\.0\.0\.251|5353|7777|9999|198\.18\.|vnc|rfb|websocket|udp|tcp|discovery' |
-              sed "s#^#${so}: #" >> report/native-strings-with-files.txt || true
-          done < <(find unpacked -type f -name '*.so' -print0)
-          sort -u -o report/native-strings-with-files.txt report/native-strings-with-files.txt
-
-          DEXDUMP="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools" -type f -name dexdump 2>/dev/null | sort -V | tail -1 || true)"
-          if [ -n "$DEXDUMP" ]; then
-            : > report/dexdump-network.txt
-            while IFS= read -r -d '' dex; do
-              "$DEXDUMP" -d "$dex" 2>/dev/null |
-                rg -i -C 6 'yachtsense|axiom|mfd|mirror|NSD|NsdManager|MulticastLock|mdns|bonjour|zeroconf|5353|7777|9999|198\.18\.|VNC|RFB|discovery|service' \
-                >> report/dexdump-network.txt || true
-            done < <(find unpacked -type f -name 'classes*.dex' -print0)
-          fi
-
-          # Record native ELF library names and dynamic symbols that look
-          # relevant to networking or remote-screen transport.
-          : > report/native-symbols.txt
-          while IFS= read -r -d '' so; do
-            readelf -Ws "$so" 2>/dev/null |
-              rg -i 'vnc|rfb|mdns|bonjour|zeroconf|socket|websocket|udp|tcp|discover|mirror|remote|mfd' |
-              sed "s#^#${so}: #" >> report/native-symbols.txt || true
-          done < <(find unpacked -type f -name '*.so' -print0)
-          sort -u -o report/native-symbols.txt report/native-symbols.txt
-
-          printf 'Source: com.raymarine.rayconnect\nMirror build: 2.3.13 armeabi-v7\n' > report/summary.txt
-          wc -l report/*.txt >> report/summary.txt
-
-      - name: Upload protocol report
-        uses: actions/upload-artifact@v4
-        with:
-          name: raymarine-app-protocol-report
-          path: /tmp/raymarine/report/*.txt
-          retention-days: 3
+          echo '=== Native Raymarine transport strings ==='
+          mkdir -p /tmp/raymarine/native
+          unzip -q -o /tmp/raymarine/raymarine.apk 'lib/armeabi-v7a/*' -d /tmp/raymarine/native
+          for so in libRayDBRemoteClient.so librrccpp.so libraydb.so libownerrequest.so libgstreamer_android.so; do
+            f="/tmp/raymarine/native/lib/armeabi-v7a/$so"
+            [ -f "$f" ] || continue
+            echo "--- $so ---"
+            strings -a -n 4 "$f" | grep -iE \
+              'raymarine|mfd|rayview|raycontrol|rtsp|rtspsrc|tcp|udp|socket|port|discover|websocket|http|198\.18\.|224\.0\.0\.251|5353|7777|5900|554' \
+              | sort -u | head -n 800 || true
+          done
