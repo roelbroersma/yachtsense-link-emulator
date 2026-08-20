@@ -1,5 +1,5 @@
 Raymarine Android current-version protocol fingerprint
-generated=2026-08-20T23:10:23Z
+generated=2026-08-20T23:16:03Z
 xapk_sha256=76eb728dc9fa6bbefdaf4dcf91fb8cbb4886f1162e96bb3bc487a2e50fcb952a
 base_apk=xapk/com.raymarine.rayconnect.apk
 

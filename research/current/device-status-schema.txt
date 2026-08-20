@@ -1,0 +1,51 @@
+FILE domain/hardware/router/DeviceStatus.java
+22: public static final class Success extends DeviceStatus {
+24: private final String name;
+26: private final String serial;
+28: public final String getCloudEnvironment() {
+32: public final String getName() {
+36: public final boolean getOnboarded() {
+40: public final String getSerial() {
+54: public Success(String name, String serial, boolean z, String cloudEnvironment) {
+68: public static final class Failure extends DeviceStatus {
+69: private final int code;
+70: private final String message;
+72: public final int getCode() {
+76: public final String getMessage() {
+81: public Failure(int i, String message) {
+FILE device/mfd/cloudconnector/CloudConnectorOnboardDriverImpl.java
+60: private final Gson gson;
+61: private final OkHttpClient httpClient;
+62: private final Logger logger;
+63: private final Resources resources;
+98: URL url = new URL("http://" + networkDevice.getIpAddress() + ":7777");
+105: if (httpURLConnection.getResponseCode() == 200) {
+110: failure = (DeviceStatus) gson.fromJson((Reader) (inputStreamReader instanceof BufferedReader ? (BufferedReader) inputStreamReader : new BufferedReader(inputStreamReader, 8192)), DeviceStatus.Success.class);
+112: int responseCode = httpURLConnection.getResponseCode();
+119: int responseCode2 = httpURLConnection.getResponseCode();
+141: Request.Builder builderUrl = new Request.Builder().url(new URL("http://" + str + ":7777"));
+152: OnboardResponse onboardResponse = (OnboardResponse) gson.fromJson(responseBodyBody.charStream(), OnboardResponse.class);
+168: strMessage = ((OnboardResponse) gson2.fromJson(responseBodyBody2.charStream(), OnboardResponse.class)).getError();
+211: @Expose
+212: private final String key;
+214: @Expose
+215: private final String secret;
+217: @Expose
+218: private final String signature;
+220: public final String getKey() {
+224: public final String getSecret() {
+228: public final String getSignature() {
+242: public final Charset getENCODING() {
+288: @Expose
+289: private final String key;
+291: @Expose
+292: private final String signature;
+294: @Expose
+297: public final String getKey() {
+301: public final String getSignature() {
+305: public final JsonArray getSlaves() {
+324: public final Charset getENCODING() {
+375: private final String error;
+376: private final boolean onboarded;
+378: public final String getError() {
+382: public final boolean getOnboarded() {
