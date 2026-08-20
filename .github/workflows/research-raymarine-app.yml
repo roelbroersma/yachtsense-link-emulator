@@ -1,0 +1,141 @@
+name: Research Raymarine Android app
+
+# Research workflow kept off main. It downloads a publicly available Raymarine
+# Android split bundle, extracts protocol-relevant strings and uploads only a
+# text report. No Raymarine APK or decompiled proprietary source is committed.
+on:
+  push:
+    branches: ["research-raymarine-apk"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out research branch
+        uses: actions/checkout@v4
+
+      - name: Install analysis tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl unzip file binutils ripgrep python3
+
+      - name: Resolve fresh APK.DOG download and fetch split bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p research/app
+          cd research/app
+
+          PAGE='https://apk.dog/download?split=474662%2F3414916%2Frayconnect-by-raymarine'
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/151 Safari/537.36'
+
+          curl -fsSL -A "$UA" "$PAGE" -o download-page.html
+
+          python3 - <<'PY' > go-url.txt
+          import html
+          import re
+          from urllib.parse import urljoin
+
+          text = open('download-page.html', encoding='utf-8', errors='ignore').read()
+          matches = re.findall(r'href=["\']([^"\']*?/go/\?b=[^"\']+)["\']', text)
+          if not matches:
+              raise SystemExit('Could not locate current /go/?b= download link')
+          print(urljoin('https://apk.dog/', html.unescape(matches[0])))
+          PY
+
+          GO_URL="$(cat go-url.txt)"
+          echo "Resolved temporary download redirect."
+          curl -fL --retry 3 --retry-delay 2 -A "$UA" "$GO_URL" -o Raymarine.zip
+
+          file Raymarine.zip
+          unzip -t Raymarine.zip
+          unzip -q Raymarine.zip -d bundle
+          find bundle -maxdepth 2 -type f -printf '%p\t%s bytes\n' | sort > bundle-files.txt
+
+      - name: Extract manifests, DEX and native libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd research/app
+          mkdir -p unpacked
+
+          # Split bundles from this mirror may omit the .apk extension on
+          # configuration splits. Detect ZIP/APK payloads by magic instead.
+          while IFS= read -r -d '' f; do
+            if file "$f" | grep -q 'Zip archive data'; then
+              name="$(basename "$f" | tr ' /' '__')"
+              mkdir -p "unpacked/$name"
+              unzip -q -o "$f" -d "unpacked/$name" || true
+            fi
+          done < <(find bundle -type f -print0)
+
+          find unpacked -type f \( -name 'classes*.dex' -o -name '*.so' -o -name 'AndroidManifest.xml' \) \
+            -printf '%p\t%s bytes\n' | sort > payload-files.txt
+
+      - name: Produce protocol string report
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd research/app
+          mkdir -p report
+
+          cat > report/README.txt <<'EOF'
+          Raymarine Android application protocol research
+          =================================================
+          Source application: com.raymarine.rayconnect
+          Target mirror build: 2.3.13, armeabi-v7 split bundle
+
+          This artifact contains extracted metadata and protocol-relevant
+          strings only. It intentionally excludes APK files and decompiled
+          proprietary source code.
+          EOF
+
+          cp bundle-files.txt payload-files.txt report/
+
+          # Search DEX and native libraries directly. DNS-SD names, network
+          # constants, URLs and log messages are stored as printable strings in
+          # both DEX constant pools and native ELF rodata.
+          find unpacked -type f \( -name 'classes*.dex' -o -name '*.so' \) -print0 |
+            xargs -0 strings -a -n 4 2>/dev/null |
+            rg -i \
+              'yachtsense|yacht.?sense|raymarine|axiom|mfd|mirror|mirroring|remote.?control|bonjour|zeroconf|mdns|dns.?sd|nsdmanager|multicast|_http\._tcp|_.*\._tcp|_.*\._udp|224\.0\.0\.251|5353|7777|9999|198\.18\.|vnc|rfb|websocket|socket|udp|tcp|rtsp|webrtc|discovery|service.?found|service.?lost' \
+            | sort -u > report/protocol-strings.txt || true
+
+          # Preserve source file context for every interesting native string.
+          : > report/native-strings-with-files.txt
+          while IFS= read -r -d '' so; do
+            strings -a -n 4 "$so" |
+              rg -i \
+                'yachtsense|axiom|mfd|mirror|bonjour|zeroconf|mdns|dns.?sd|_http\._tcp|224\.0\.0\.251|5353|7777|9999|198\.18\.|vnc|rfb|websocket|udp|tcp|discovery' |
+              sed "s#^#${so}: #" >> report/native-strings-with-files.txt || true
+          done < <(find unpacked -type f -name '*.so' -print0)
+          sort -u -o report/native-strings-with-files.txt report/native-strings-with-files.txt
+
+          # The runner already carries Android SDK build-tools. If dexdump is
+          # available, create a richer DEX dump and filter it to network terms.
+          DEXDUMP="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools" -type f -name dexdump 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -n "$DEXDUMP" ]; then
+            : > report/dexdump-network.txt
+            while IFS= read -r -d '' dex; do
+              "$DEXDUMP" -d "$dex" 2>/dev/null |
+                rg -i -C 4 \
+                  'yachtsense|axiom|mfd|mirror|NSD|NsdManager|MulticastLock|mdns|bonjour|zeroconf|5353|7777|9999|198\.18\.|VNC|RFB|discovery|service' \
+                >> report/dexdump-network.txt || true
+            done < <(find unpacked -type f -name 'classes*.dex' -print0)
+          fi
+
+          wc -l report/* > report/line-counts.txt
+          tar -czf raymarine-app-protocol-report.tar.gz -C report .
+
+      - name: Upload research report
+        uses: actions/upload-artifact@v4
+        with:
+          name: raymarine-app-protocol-report
+          path: research/app/raymarine-app-protocol-report.tar.gz
+          retention-days: 7
