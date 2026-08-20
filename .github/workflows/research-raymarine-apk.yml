@@ -6,10 +6,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   analyze:
+    if: ${{ !contains(github.event.head_commit.message || '', '[research-result]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,11 +21,9 @@ jobs:
           set -euxo pipefail
           mkdir -p research/download
           cd research/download
-          # APKPure's direct endpoint normally returns the latest XAPK for a package.
           if ! curl -fL --retry 3 --retry-delay 3 -A 'Mozilla/5.0' \
             'https://d.apkpure.com/b/XAPK/com.raymarine.rayconnect?version=latest' \
             -o raymarine.xapk; then
-            # Fallback to the publicly mirrored 2.3.13 arm64 split bundle.
             curl -fL --retry 3 --retry-delay 3 -A 'Mozilla/5.0' \
               'https://apk.dog/download?split=474663%2F3414916%2Frayconnect-by-raymarine' \
               -o raymarine.xapk
@@ -41,9 +40,7 @@ jobs:
           unzip -q research/download/raymarine.xapk -d research/xapk
           find research/xapk -type f -name '*.apk' -printf '%p\n' | sort | tee research/report/apks.txt
           BASE="$(find research/xapk -type f \( -name 'base.apk' -o -name 'com.raymarine.rayconnect.apk' \) | head -n1)"
-          if [ -z "$BASE" ]; then
-            BASE="$(find research/xapk -type f -name '*.apk' | head -n1)"
-          fi
+          if [ -z "$BASE" ]; then BASE="$(find research/xapk -type f -name '*.apk' | head -n1)"; fi
           test -n "$BASE"
           echo "$BASE" | tee research/report/base-apk.txt
           sha256sum research/download/raymarine.xapk "$BASE" | tee research/report/sha256.txt
@@ -52,9 +49,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          curl -fL --retry 3 \
-            'https://github.com/skylot/jadx/releases/download/v1.5.2/jadx-1.5.2.zip' \
-            -o /tmp/jadx.zip
+          curl -fL --retry 3 'https://github.com/skylot/jadx/releases/download/v1.5.2/jadx-1.5.2.zip' -o /tmp/jadx.zip
           unzip -q /tmp/jadx.zip -d /tmp/jadx
           /tmp/jadx/bin/jadx --version
 
@@ -74,9 +69,7 @@ jobs:
           mkdir -p research/unpacked
           i=0
           while IFS= read -r apk; do
-            i=$((i+1))
-            mkdir -p "research/unpacked/$i"
-            unzip -q -o "$apk" -d "research/unpacked/$i" || true
+            i=$((i+1)); mkdir -p "research/unpacked/$i"; unzip -q -o "$apk" -d "research/unpacked/$i" || true
           done < research/report/apks.txt
           find research/unpacked -type f -name '*.so' -printf '%p\n' | sort | tee research/report/native-libs.txt
 
@@ -96,23 +89,23 @@ jobs:
           echo '=== NATIVE STRING HITS ===' > research/report/native-strings.txt
           while IFS= read -r so; do
             echo "--- $so ---" >> research/report/native-strings.txt
-            strings -a "$so" | grep -iE 'yachtsense|raymarine|mfd|mdns|dns.?sd|bonjour|zeroconf|_http\._tcp|multicast|224\.0\.0\.251|5353|7777|vnc|rfb|rtsp|mirror|stream|5900|5901|discov' \
-              | sort -u | head -n 2000 >> research/report/native-strings.txt || true
+            strings -a "$so" | grep -iE 'yachtsense|raymarine|mfd|mdns|dns.?sd|bonjour|zeroconf|_http\._tcp|multicast|224\.0\.0\.251|5353|7777|vnc|rfb|rtsp|mirror|stream|5900|5901|discov' | sort -u | head -n 2000 >> research/report/native-strings.txt || true
           done < research/report/native-libs.txt
 
-      - name: Collect likely implementation files
+      - name: Collect likely implementation files and excerpts
         shell: bash
         run: |
           set -euxo pipefail
           mkdir -p research/selected
-          grep -RilE --binary-files=without-match \
-            'YachtSense|NsdManager|DnsSd|mDNS|_http\._tcp|VNC|RFB|RTSP|mirror|screen.?stream|MulticastSocket|DatagramSocket' \
-            research/jadx 2>/dev/null | head -n 300 > research/report/selected-files.txt || true
+          grep -RilE --binary-files=without-match 'YachtSense|NsdManager|DnsSd|mDNS|_http\._tcp|VNC|RFB|RTSP|mirror|screen.?stream|MulticastSocket|DatagramSocket' research/jadx 2>/dev/null | head -n 300 > research/report/selected-files.txt || true
+          : > research/report/source-excerpts.txt
           while IFS= read -r f; do
             [ -f "$f" ] || continue
             rel="${f#research/jadx/}"
             mkdir -p "research/selected/$(dirname "$rel")"
             cp "$f" "research/selected/$rel"
+            echo "===== $rel =====" >> research/report/source-excerpts.txt
+            grep -nEi -C 8 'YachtSense|NsdManager|DnsSd|mDNS|_http\._tcp|VNC|RFB|RTSP|mirror|screen.?stream|MulticastSocket|DatagramSocket' "$f" >> research/report/source-excerpts.txt || true
           done < research/report/selected-files.txt
           tar -czf research/raymarine-selected-sources.tar.gz -C research selected report
 
@@ -124,3 +117,13 @@ jobs:
             research/report/**
             research/raymarine-selected-sources.tar.gz
           retention-days: 3
+
+      - name: Commit text research report to temporary branch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f research/report
+          git commit -m '[research-result] Store Raymarine APK analysis' || exit 0
+          git push origin HEAD:research-raymarine-apk
