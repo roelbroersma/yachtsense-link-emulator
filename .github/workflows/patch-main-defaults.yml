@@ -1,0 +1,53 @@
+name: Synchronize YachtSense defaults on main
+
+on:
+  push:
+    branches: ["research-raymarine-apk"]
+    paths:
+      - .github/workflows/patch-main-defaults.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+      - name: Replace only legacy identity fallback values
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path('package/root/usr/lib/lua/api/services/yachtsense_link_emulator.lua'),
+              Path('package/root/www/views/services/YachtSenseLinkEmulator.js'),
+              Path('cmd/yachtsense-link-emulator/main.go'),
+              Path('cmd/yachtsense-link-emulator/main_test.go'),
+          ]
+          for p in paths:
+              s=p.read_text()
+              s=s.replace('"yachtsense-link"', '"yachtsense-main"')
+              s=s.replace('YachtSense Link Settings', 'yachtsense-main Settings')
+              p.write_text(s)
+          PY
+          gofmt -w cmd/yachtsense-link-emulator/*.go
+          go test ./...
+      - name: Push synchronized defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cmd package/root/usr/lib/lua/api/services/yachtsense_link_emulator.lua package/root/www/views/services/YachtSenseLinkEmulator.js
+          git commit -m 'Use official YachtSense hostname in all defaults' || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
