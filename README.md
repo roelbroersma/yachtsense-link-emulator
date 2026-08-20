@@ -47,16 +47,16 @@ This is intentionally much smaller than emulating a complete YachtSense Link rou
 The daemon publishes an `_http._tcp.local` DNS-SD service with these records:
 
 ```text
-PTR  _http._tcp.local -> <service instance>
-SRV  <service instance> -> <hostname>.local:80
+PTR  _http._tcp.local -> yachtsense-main Settings._http._tcp.local
+SRV  yachtsense-main Settings._http._tcp.local -> yachtsense-main.local:80
 TXT  id=E70640 AF002A4
 TXT  model=Raymarine YachtSense Link
 TXT  version=V142.242.530
 TXT  mac=<MAC address of selected interface>
-A    <hostname>.local -> <configured IPv4 address>
+A    yachtsense-main.local -> <configured IPv4 address>
 ```
 
-The shipped default serial is **`AF002A4`**. The serial is configurable; the MAC address is always taken dynamically from the selected Teltonika interface.
+The shipped default serial is **`AF002A4`**. The serial is configurable; the MAC address is always taken dynamically from the selected Teltonika interface. The default hostname and service instance match the real YachtSense Link firmware: **`yachtsense-main`** and **`yachtsense-main Settings`**.
 
 mDNS behavior:
 
@@ -98,6 +98,42 @@ The emulator therefore focuses on the two behaviors that matter for this recogni
 - a successful HTTP response on port `7777`.
 
 The project does **not** copy or redistribute the Raymarine implementation; it independently reproduces the observed network protocol behavior.
+
+### Raymarine mobile app and screen mirroring
+
+The current Raymarine Android app uses **Android NSD / mDNS directly to discover the MFD**. Analysis of Raymarine Android **2.3.16** shows that it browses these DNS-SD service types:
+
+- `_rtsp._tcp` — MFD screen-stream discovery;
+- `_rym_rrc._tcp` — Raymarine remote-control discovery;
+- `_raydb._tcp` — Raymarine database/device service;
+- `_http._tcp` — onboard devices including YachtSense Link;
+- `_services._dns-sd._udp` — generic DNS-SD enumeration.
+
+Screen mirroring is therefore **not proxied through YachtSense Link**. Once the phone has discovered the Axiom and can route to its IP address, the app opens the MFD stream directly:
+
+```text
+rtsp://<Axiom-IP>:8554/RAYMARINEMFD
+```
+
+The app's current remote-control implementation defines these ports:
+
+| Port | Meaning in the Raymarine app |
+|---|---|
+| `8554/TCP` | View-only / RTSP screen stream |
+| `50000/TCP` | Touch-capable remote-control socket |
+| `49111` | `DISABLE_PORT` state used by MFD discovery |
+
+Touch events contain a touch ID, a state (`down`, `moved`, `up`) and normalized X/Y coordinates. The control client connects directly to the MFD on TCP port `50000`.
+
+For a phone connected to a Teltonika Wi-Fi network, this means the Axiom does **not** have to be the phone's Wi-Fi access point. The phone needs:
+
+1. mDNS visibility to the Axiom (`224.0.0.251:5353/UDP`);
+2. IP reachability to the Axiom;
+3. access to TCP `8554` and TCP `50000`.
+
+If Wi-Fi and the Axiom Ethernet port are members of the same bridge/broadcast domain, ordinary mDNS is sufficient. If they are separated by VLANs or routed interfaces, an mDNS reflector/repeater and normal unicast routing are required.
+
+The current Raymarine app also classifies an `_http._tcp` onboard device as a YachtSense Link when its service name contains **`yachtsense-main`** (legacy builds also accept `imx8mmevk`). The real YachtSense firmware uses hostname `yachtsense-main`, so the emulator uses **`yachtsense-main`** and **`yachtsense-main Settings`** as its defaults as well.
 
 ## Networking
 
@@ -141,9 +177,11 @@ The package intentionally does not change DHCP, DNS, routing, firewall or NAT co
 
 | Protocol | Address / port | Purpose |
 |---|---|---|
-| mDNS | `224.0.0.251:5353/UDP` | YachtSense Link DNS-SD discovery |
+| mDNS | `224.0.0.251:5353/UDP` | YachtSense Link and MFD DNS-SD discovery |
 | HTTP | `<configured IP>:7777/TCP` | Axiom connection monitor |
-| DNS-SD SRV value | TCP `80` | Discovery metadata only |
+| DNS-SD SRV value | TCP `80` | YachtSense discovery metadata only |
+| Axiom RTSP | `<Axiom IP>:8554/TCP` | Screen mirroring (MFD service, not emulator) |
+| Axiom control | `<Axiom IP>:50000/TCP` | Touch/remote control (MFD service, not emulator) |
 
 ## Compatibility
 
@@ -220,8 +258,8 @@ Managed address:  198.18.0.1/21
 Serial:           AF002A4
 Product ID:       E70640 (fixed)
 Version:          V142.242.530
-Hostname:         yachtsense-link
-Service instance: YachtSense Link Settings
+Hostname:         yachtsense-main
+Service instance: yachtsense-main Settings
 Health port:      7777
 mDNS TTL:         120 seconds
 ```
@@ -309,7 +347,8 @@ Not implemented:
 - YachtSense Link JSON-RPC administration API;
 - HTTPS administration certificates;
 - Raymarine cloud connector;
-- GNSS endpoints on ports `7778` or `9999`;
+- YachtSense onboard WebSocket/data service on port `7778`;
+- GNSS service on port `9999`;
 - NMEA 2000 / SeaTalkNG behavior;
 - digital I/O;
 - modem, Wi-Fi uplink or data-usage reporting;
