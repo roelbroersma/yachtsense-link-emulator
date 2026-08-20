@@ -49,7 +49,7 @@ export default {
         ipaddr: "198.18.0.1",
         prefix: 21,
         remove_ip_on_stop: true,
-        serial: "RUTX001",
+        serial: "AF002A4",
         version: "V142.242.530",
         hostname: "yachtsense-link",
         instance: "YachtSense Link Settings",
