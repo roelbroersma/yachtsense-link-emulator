@@ -1,0 +1,5 @@
+[
+  {
+    "/yachtsense-link-emulator/{service_group}/{?sid}": "services/yachtsense_link_emulator"
+  }
+]

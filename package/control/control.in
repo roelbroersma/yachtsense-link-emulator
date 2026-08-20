@@ -1,0 +1,9 @@
+Package: tlt_custom_pkg_yachtsense-link-emulator
+Version: @VERSION@-@RELEASE@
+Architecture: ipq40xx
+Maintainer: Roel Broersma
+Section: net
+Priority: optional
+Depends: libc, api-core, vuci-ui-core
+Installed-Size: @INSTALLED_SIZE@
+Description: YachtSense Link discovery emulator for Teltonika RUTX routers on RutOS 7. Includes an ARMv7 mDNS and HTTP daemon, UCI configuration, procd integration and a VuCI management page.

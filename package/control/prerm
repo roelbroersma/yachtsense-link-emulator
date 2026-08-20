@@ -1,0 +1,18 @@
+#!/bin/sh
+
+# Stop the daemon before opkg removes its init script and executable.
+[ -n "${IPKG_INSTROOT:-}" ] && exit 0
+/etc/init.d/yachtsense-link-emulator stop >/dev/null 2>&1 || true
+/etc/init.d/yachtsense-link-emulator disable >/dev/null 2>&1 || true
+
+# Package removal always cleans an address recorded as package-managed, even if
+# the normal "remove on stop" preference was disabled by the user.
+STATE_FILE='/var/run/yachtsense-link-emulator.managed-ip'
+if [ -r "$STATE_FILE" ]; then
+	read -r managed_interface managed_address < "$STATE_FILE"
+	if [ -n "$managed_interface" ] && [ -n "$managed_address" ]; then
+		ip addr del "$managed_address" dev "$managed_interface" >/dev/null 2>&1 || true
+	fi
+	rm -f "$STATE_FILE"
+fi
+exit 0

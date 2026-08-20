@@ -1,0 +1,32 @@
+# YachtSense Link Emulator UCI configuration.
+# Use Services > YachtSense Link Emulator in VuCI whenever possible.
+
+config emulator 'main'
+	# Keep a clean installation disabled until its network interface is checked.
+	option enabled '0'
+
+	# The two emulated protocol components can be controlled independently.
+	option mdns_enabled '1'
+	option web_enabled '1'
+
+	# Linux bridge or Ethernet interface connected to the Axiom/RayNet segment.
+	option interface 'br-lan'
+
+	# Add the configured IPv4 address automatically when the service starts.
+	option manage_ip '1'
+	option ipaddr '198.18.0.1'
+	option prefix '21'
+
+	# Remove only an address that this package added itself.
+	option remove_ip_on_stop '1'
+
+	# Identity published in the DNS-SD TXT and host records.
+	option serial 'RUTX001'
+	option version 'V142.242.530'
+	option hostname 'yachtsense-link'
+	option instance 'YachtSense Link Settings'
+	option ttl '120'
+
+	# HTTP endpoint used by the Axiom connection monitor and WebUI log length.
+	option health_port '7777'
+	option log_lines '24'

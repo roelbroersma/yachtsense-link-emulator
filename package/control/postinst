@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# During image creation opkg sets IPKG_INSTROOT; runtime service operations are
+# meaningful only when the package is installed on a running router.
+[ -n "${IPKG_INSTROOT:-}" ] && exit 0
+
+# Enforce executable permissions even if an archive tool changed mode bits.
+chmod 0755 /etc/init.d/yachtsense-link-emulator /usr/sbin/yachtsense-link-emulator
+
+# Apply the current UCI master switch. A clean installation uses enabled=0,
+# while a normal future package update keeps the user's unchanged conffile.
+if [ "$(uci -q get yachtsense_link_emulator.main.enabled 2>/dev/null)" = "1" ]; then
+	/etc/init.d/yachtsense-link-emulator enable >/dev/null 2>&1 || true
+	/etc/init.d/yachtsense-link-emulator restart >/dev/null 2>&1 || true
+else
+	/etc/init.d/yachtsense-link-emulator stop >/dev/null 2>&1 || true
+	/etc/init.d/yachtsense-link-emulator disable >/dev/null 2>&1 || true
+fi
+
+# Reload the API and web server so new ACL, path and menu descriptors are seen.
+/etc/init.d/rpcd restart >/dev/null 2>&1 || true
+/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
+logger -t yachtsense-link-emulator "Package installed; open Services > YachtSense Link Emulator"
+exit 0
