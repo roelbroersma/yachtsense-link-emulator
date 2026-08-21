@@ -1,8 +1,9 @@
 name: Apply tested source bundle
 
 # Temporary self-cleaning workflow. It reconstructs the exact source archive
-# already uploaded to the bootstrap branch, validates it, then replaces main
-# with that tested source tree and removes the bootstrap branch.
+# already uploaded to the bootstrap branch, validates it, then publishes all
+# non-workflow source/package files to main. Workflow files are intentionally
+# preserved because the GitHub Actions token has no workflows permission.
 on:
   push:
     branches: ["main"]
@@ -51,13 +52,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends jq lua5.1 rsync
 
-      - name: Replace working tree with tested source
+      - name: Replace working tree with tested non-workflow source
         shell: bash
         run: |
           set -euo pipefail
           rsync -a --delete \
             --exclude='.git/' \
             --exclude='dist/' \
+            --exclude='.github/workflows/' \
             /tmp/ysle-source/ ./
 
       - name: Validate and build ARMv7 package
@@ -77,8 +79,12 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add -A -- ':!.github/workflows'
           git status --short
+          if git diff --cached --quiet; then
+            echo 'No non-workflow source changes to publish.'
+            exit 0
+          fi
           git commit -m 'Add Raymarine app mDNS discovery relay'
           git push origin HEAD:main
 
