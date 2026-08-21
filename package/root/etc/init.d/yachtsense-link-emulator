@@ -1,15 +1,29 @@
 #!/bin/sh /etc/rc.common
 
-# Start after normal network bridges have been created by RutOS.
+# Start after normal network bridges and VLAN devices have been created by RutOS.
 START=97
 STOP=10
 USE_PROCD=1
 
-# Package paths and the state file that records only an address added by us.
+# Package paths and runtime files. The managed-IP file records only an address
+# that this package added; the runtime file is read by the VuCI status API.
 PROG='/usr/sbin/yachtsense-link-emulator'
-STATE_FILE='/var/run/yachtsense-link-emulator.managed-ip'
+MANAGED_IP_FILE='/var/run/yachtsense-link-emulator.managed-ip'
+RUNTIME_STATE_FILE='/var/run/yachtsense-link-emulator.runtime'
 LOG_TAG='yachtsense-link-emulator'
 UCI_CONFIG='yachtsense_link_emulator'
+
+# Append one UCI list item to the comma-separated environment value consumed by
+# the dependency-free Go daemon.
+append_remote_interface() {
+	local value="$1"
+	[ -n "$value" ] || return 0
+	if [ -n "$remote_interfaces" ]; then
+		remote_interfaces="${remote_interfaces},${value}"
+	else
+		remote_interfaces="$value"
+	fi
+}
 
 # Load the single named UCI section and apply clean-install defaults.
 load_settings() {
@@ -17,19 +31,22 @@ load_settings() {
 	config_get_bool enabled main enabled 0
 	config_get_bool mdns_enabled main mdns_enabled 1
 	config_get_bool web_enabled main web_enabled 1
-	config_get interface main interface 'br-lan'
+	config_get axiom_interface main axiom_interface 'br-lan'
+	remote_interfaces=''
+	config_list_foreach main remote_interface append_remote_interface
+	[ -n "$remote_interfaces" ] || remote_interfaces='br-lan'
+	config_get relay_mode main relay_mode 'auto'
 	config_get_bool manage_ip main manage_ip 1
 	config_get ipaddr main ipaddr '198.18.0.1'
 	config_get prefix main prefix '21'
 	config_get_bool remove_ip_on_stop main remove_ip_on_stop 1
 	config_get serial main serial 'AF002A4'
 	config_get version main version 'V142.242.530'
-	# Match the real YachtSense Link Avahi identity. The Raymarine mobile app
-	# also classifies onboard _http._tcp services by the yachtsense-main name.
 	config_get hostname main hostname 'yachtsense-main'
 	config_get instance main instance 'yachtsense-main Settings'
 	config_get ttl main ttl '120'
 	config_get health_port main health_port '7777'
+	config_get log_level main log_level 'info'
 }
 
 # Return success when an exact IPv4 address/prefix exists on a Linux device.
@@ -39,52 +56,73 @@ address_present() {
 	ip -o -4 addr show dev "$device" 2>/dev/null | grep -Fq "inet $address "
 }
 
-# Remove the address recorded in STATE_FILE. The force argument is used during
-# a restart so a changed interface/address can be reapplied without leaving the
-# previous managed address behind.
+# Detect an active Avahi reflector. Merely finding avahi-daemon on UDP/5353 is
+# not enough: normal Avahi service publication is compatible with our daemon.
+avahi_reflector_enabled() {
+	pidof avahi-daemon >/dev/null 2>&1 || return 1
+	for file in /etc/avahi/avahi-daemon.conf /etc/avahi/avahi-daemon.conf.d/*.conf; do
+		[ -r "$file" ] || continue
+		if grep -Eiq '^[[:space:]]*enable-reflector[[:space:]]*=[[:space:]]*(yes|true|1)[[:space:]]*([#;].*)?$' "$file"; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+# Return one concise line showing any current UDP/5353 listener. This is only a
+# diagnostic: a listener does not automatically mean a reflector is running.
+mdns_listener_summary() {
+	if command -v ss >/dev/null 2>&1; then
+		ss -lunp 2>/dev/null | grep -E '(:5353|\.5353)[[:space:]]' | head -n 1
+	elif command -v netstat >/dev/null 2>&1; then
+		netstat -lnup 2>/dev/null | grep -E '(:5353|\.5353)[[:space:]]' | head -n 1
+	fi
+}
+
+# Remove the address recorded in MANAGED_IP_FILE. The force argument is used
+# during restart so changed interface/address settings cannot leave stale state.
 remove_managed_address() {
 	local force="${1:-0}"
 	local old_interface old_address
 
-	[ -r "$STATE_FILE" ] || return 0
+	[ -r "$MANAGED_IP_FILE" ] || return 0
 	[ "$force" -eq 1 ] || [ "$remove_ip_on_stop" -eq 1 ] || return 0
 
-	read -r old_interface old_address < "$STATE_FILE"
+	read -r old_interface old_address < "$MANAGED_IP_FILE"
 	if [ -n "$old_interface" ] && [ -n "$old_address" ] && address_present "$old_interface" "$old_address"; then
 		ip addr del "$old_address" dev "$old_interface" 2>/dev/null || true
 		logger -t "$LOG_TAG" "Removed managed address $old_address from $old_interface"
 	fi
-
-	rm -f "$STATE_FILE"
+	rm -f "$MANAGED_IP_FILE"
 }
 
-# Add the configured address only when management is enabled. Existing user-
-# owned addresses are never written to STATE_FILE and therefore never removed.
+# Add the configured RayNet address only when management is enabled. Existing
+# user-owned addresses are never recorded and therefore never removed by us.
 add_managed_address() {
 	local address="${ipaddr}/${prefix}"
 
 	[ "$manage_ip" -eq 1 ] || return 0
-	ip link show dev "$interface" >/dev/null 2>&1 || {
-		logger -t "$LOG_TAG" "Interface $interface does not exist"
+	ip link show dev "$axiom_interface" >/dev/null 2>&1 || {
+		logger -t "$LOG_TAG" "Axiom interface $axiom_interface does not exist"
 		return 1
 	}
 
-	if address_present "$interface" "$address"; then
-		logger -t "$LOG_TAG" "Address $address is already present on $interface"
+	if address_present "$axiom_interface" "$address"; then
+		logger -t "$LOG_TAG" "Address $address is already present on $axiom_interface"
 		return 0
 	fi
 
-	ip addr add "$address" dev "$interface" || {
-		logger -t "$LOG_TAG" "Could not add $address to $interface"
+	ip addr add "$address" dev "$axiom_interface" || {
+		logger -t "$LOG_TAG" "Could not add $address to $axiom_interface"
 		return 1
 	}
 
-	printf '%s %s\n' "$interface" "$address" > "$STATE_FILE"
-	logger -t "$LOG_TAG" "Added managed address $address to $interface"
+	printf '%s %s\n' "$axiom_interface" "$address" > "$MANAGED_IP_FILE"
+	logger -t "$LOG_TAG" "Added managed address $address to $axiom_interface"
 }
 
-# Start the native responder under procd and export all UCI values as a small,
-# explicit environment contract. The daemon itself contains no UCI dependency.
+# Start the native responder/relay under procd and export UCI values as an
+# explicit environment contract. No Avahi package is required by the daemon.
 start_service() {
 	load_settings
 
@@ -92,8 +130,8 @@ start_service() {
 		logger -t "$LOG_TAG" "Service is disabled in configuration"
 		return 0
 	}
-	[ "$mdns_enabled" -eq 1 ] || [ "$web_enabled" -eq 1 ] || {
-		logger -t "$LOG_TAG" "mDNS and HTTP service are both disabled"
+	[ "$mdns_enabled" -eq 1 ] || [ "$web_enabled" -eq 1 ] || [ "$relay_mode" != 'disabled' ] || {
+		logger -t "$LOG_TAG" "mDNS, HTTP and discovery relay are all disabled"
 		return 0
 	}
 	[ -x "$PROG" ] || {
@@ -101,16 +139,35 @@ start_service() {
 		return 1
 	}
 
-	# A restart always clears a previously managed address before applying the
-	# current interface and address settings.
+	# A restart always clears a previously package-managed address before the
+	# current Axiom interface/address is applied.
 	remove_managed_address 1
 	add_managed_address || return 1
 
-	logger -t "$LOG_TAG" "Starting on $interface with ${ipaddr}/${prefix}"
+	local existing_reflector='0'
+	local reflector_reason=''
+	if avahi_reflector_enabled; then
+		existing_reflector='1'
+		reflector_reason='Existing Avahi mDNS reflector is active'
+		if [ "$relay_mode" = 'force' ]; then
+			logger -t "$LOG_TAG" "WARNING: Avahi reflector detected but built-in relay is forced"
+		else
+			logger -t "$LOG_TAG" "Avahi reflector detected; Automatic mode will not start a second reflector"
+		fi
+	fi
+
+	local listener
+	listener="$(mdns_listener_summary)"
+	if [ -n "$listener" ]; then
+		logger -t "$LOG_TAG" "Existing UDP/5353 listener detected; socket reuse will be attempted: $listener"
+	fi
+
+	logger -t "$LOG_TAG" "Starting Axiom interface=$axiom_interface address=${ipaddr}/${prefix} remote interfaces=$remote_interfaces relay=$relay_mode"
 	procd_open_instance
 	procd_set_param command "$PROG"
 	procd_set_param env \
-		YSL_IFACE="$interface" \
+		YSL_AXIOM_IFACE="$axiom_interface" \
+		YSL_REMOTE_IFACES="$remote_interfaces" \
 		YSL_IP="$ipaddr" \
 		YSL_SERIAL="$serial" \
 		YSL_VERSION="$version" \
@@ -119,31 +176,36 @@ start_service() {
 		YSL_HEALTH_PORT="$health_port" \
 		YSL_TTL="$ttl" \
 		YSL_MDNS_ENABLED="$mdns_enabled" \
-		YSL_WEB_ENABLED="$web_enabled"
+		YSL_WEB_ENABLED="$web_enabled" \
+		YSL_RELAY_MODE="$relay_mode" \
+		YSL_EXISTING_REFLECTOR="$existing_reflector" \
+		YSL_REFLECTOR_REASON="$reflector_reason" \
+		YSL_LOG_LEVEL="$log_level" \
+		YSL_STATE_FILE="$RUNTIME_STATE_FILE"
 
-	# Respawn after unexpected exits, while avoiding a tight crash loop.
+	# Respawn after unexpected exits while avoiding a tight crash loop.
 	procd_set_param respawn 5 10 0
 	procd_set_param stdout 1
 	procd_set_param stderr 1
 	procd_close_instance
 }
 
-# procd terminates the native process; only package-managed network state needs
-# explicit cleanup here.
+# procd terminates the native process; package-managed network state is the only
+# state that requires explicit cleanup here.
 stop_service() {
 	load_settings
 	remove_managed_address 0
 	logger -t "$LOG_TAG" "Service stopped"
 }
 
-# A full restart is required because multicast membership and bind addresses
-# cannot be changed safely inside a running process.
+# A full restart is required because multicast membership and interface binding
+# cannot be safely changed in-place.
 reload_service() {
 	stop
 	start
 }
 
-# Reload the service when this UCI package is committed outside the VuCI page.
+# Reload whenever this UCI package is committed outside the VuCI page.
 service_triggers() {
 	procd_add_reload_trigger "$UCI_CONFIG"
 }
