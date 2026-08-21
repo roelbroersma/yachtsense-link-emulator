@@ -3,6 +3,7 @@ name: Apply tested source bundle
 # Temporary self-cleaning workflow. It reconstructs the exact source archive
 # already uploaded to the bootstrap branch, validates it, then replaces main
 # with that tested source tree and removes the bootstrap branch.
+# retrigger: second push after workflow exists on default branch
 on:
   push:
     branches: ["main"]
