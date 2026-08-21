@@ -2,7 +2,7 @@ name: Apply tested v1 relay update
 
 # Temporary bootstrap-branch workflow retained only to carry the source bundle.
 # The authoritative publisher now lives temporarily on main.
-# retrigger default-branch PR validator after workflow-permission fix
+# retrigger after main rebase-publish fix
 on:
   workflow_dispatch:
 
