@@ -15,4 +15,5 @@ if [ -r "$STATE_FILE" ]; then
 	fi
 	rm -f "$STATE_FILE"
 fi
+rm -f /var/run/yachtsense-link-emulator.runtime /var/run/yachtsense-link-emulator.runtime.tmp
 exit 0

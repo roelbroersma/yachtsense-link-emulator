@@ -6,4 +6,4 @@ Section: net
 Priority: optional
 Depends: libc, api-core, vuci-ui-core
 Installed-Size: @INSTALLED_SIZE@
-Description: YachtSense Link discovery emulator for Teltonika RUTX routers on RutOS 7. Includes an ARMv7 mDNS and HTTP daemon, UCI configuration, procd integration and a VuCI management page.
+Description: YachtSense Link emulator and Raymarine app discovery relay for Teltonika RUTX routers on RutOS 7. Includes ARMv7 mDNS/DNS-SD and HTTP services, selective cross-interface Raymarine discovery reflection, Avahi/UDP-5353 diagnostics, UCI/procd integration and a VuCI management page.
