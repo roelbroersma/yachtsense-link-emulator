@@ -1,18 +1,29 @@
-# YachtSense Link Emulator UCI configuration.
+# YachtSense Link Emulator UCI configuration for RutOS 7.
 # Use Services > YachtSense Link Emulator in VuCI whenever possible.
 
 config emulator 'main'
-	# Keep a clean installation disabled until its network interface is checked.
+	# Keep a clean installation disabled until network roles have been reviewed.
 	option enabled '0'
 
-	# The two emulated protocol components can be controlled independently.
+	# YachtSense identity and Axiom HTTP liveness check can be controlled
+	# independently from the Raymarine app discovery relay.
 	option mdns_enabled '1'
 	option web_enabled '1'
 
-	# Linux bridge or Ethernet interface connected to the Axiom/RayNet segment.
-	option interface 'br-lan'
+	# Interface connected to the Axiom / RayNet side of the installation.
+	option axiom_interface 'br-lan'
 
-	# Add the configured IPv4 address automatically when the service starts.
+	# One or more interfaces on which phones/tablets run the Raymarine app.
+	# When an entry equals axiom_interface, no reflection is needed for it.
+	list remote_interface 'br-lan'
+
+	# Relay modes:
+	#   auto     - relay only when networks differ and no Avahi reflector is active
+	#   force    - force the built-in relay even if another reflector is detected
+	#   disabled - never relay; direct YachtSense advertisements can still run
+	option relay_mode 'auto'
+
+	# Add the RayNet-side IPv4 address automatically when the service starts.
 	option manage_ip '1'
 	option ipaddr '198.18.0.1'
 	option prefix '21'
@@ -20,14 +31,17 @@ config emulator 'main'
 	# Remove only an address that this package added itself.
 	option remove_ip_on_stop '1'
 
-	# Identity published in DNS-SD. These defaults mirror an actual YachtSense
-	# Link: hostname "yachtsense-main" and the "<hostname> Settings" instance.
+	# Identity published in DNS-SD. These defaults mirror a real YachtSense Link.
 	option serial 'AF002A4'
 	option version 'V142.242.530'
 	option hostname 'yachtsense-main'
 	option instance 'yachtsense-main Settings'
 	option ttl '120'
 
-	# HTTP endpoint used by the Axiom connection monitor and WebUI log length.
+	# Axiom connection-monitor endpoint.
 	option health_port '7777'
-	option log_lines '24'
+
+	# Info logs friendly discovery events; Debug also logs individual relays and
+	# follow-up DNS-SD resolution queries.
+	option log_level 'info'
+	option log_lines '40'
