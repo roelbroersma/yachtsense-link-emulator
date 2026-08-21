@@ -2,6 +2,7 @@ name: Apply tested v1 relay update
 
 # Temporary self-cleaning workflow used to validate the exact locally tested
 # source archive before publishing one clean commit to main.
+# retrigger: 2026-08-21T02:31+02:00
 on:
   push:
     branches: ["apply-raymarine-relay-v1"]
