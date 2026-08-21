@@ -1,86 +1,16 @@
 name: Apply tested v1 relay update
 
-# Temporary self-cleaning workflow used to validate the exact locally tested
-# source archive before publishing one clean commit to main.
-# retrigger: 2026-08-21T02:31+02:00
+# Temporary bootstrap-branch workflow retained only to carry the source bundle.
+# The authoritative publisher now lives temporarily on main.
+# retrigger default-branch PR validator after workflow-permission fix
 on:
-  push:
-    branches: ["apply-raymarine-relay-v1"]
-    paths:
-      - .github/workflows/apply-v1-update.yml
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  validate-and-publish:
+  placeholder:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
     steps:
-      - name: Check out bootstrap branch
-        uses: actions/checkout@v4
-        with:
-          ref: apply-raymarine-relay-v1
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22.x"
-          cache: false
-
-      - name: Install validation tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends jq lua5.1 rsync
-          if ! command -v luac >/dev/null 2>&1 && command -v luac5.1 >/dev/null 2>&1; then
-            sudo ln -s /usr/bin/luac5.1 /usr/local/bin/luac
-          fi
-
-      - name: Reconstruct exact tested source
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/ysle-source
-          cat .bootstrap/source.part* | base64 -d > /tmp/ysle-source.tar.gz
-          echo "archive sha256: $(sha256sum /tmp/ysle-source.tar.gz | cut -d' ' -f1)"
-          tar -xzf /tmp/ysle-source.tar.gz -C /tmp/ysle-source --strip-components=1
-          test -f /tmp/ysle-source/cmd/yachtsense-link-emulator/main.go
-          test -f /tmp/ysle-source/package/root/usr/lib/lua/api/services/yachtsense_link_emulator.lua
-
-      - name: Apply source on top of current main
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          git checkout -B publish origin/main
-          rsync -a --delete \
-            --exclude='.git/' \
-            --exclude='dist/' \
-            /tmp/ysle-source/ ./
-
-      - name: Validate source and build ARMv7 IPK
-        shell: bash
-        run: |
-          set -euo pipefail
-          command -v luac
-          luac -v
-          make check
-
-      - name: Publish one clean main commit
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git status --short
-          git commit -m 'Add Raymarine app mDNS discovery relay'
-          git push origin HEAD:main
-
-      - name: Remove temporary bootstrap branch
-        if: success()
-        shell: bash
-        run: git push origin --delete apply-raymarine-relay-v1 || true
+      - run: echo 'Source bundle carrier branch; publishing is handled from main.'
