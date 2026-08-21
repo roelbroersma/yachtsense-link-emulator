@@ -86,6 +86,11 @@ jobs:
             exit 0
           fi
           git commit -m 'Add Raymarine app mDNS discovery relay'
+          # Main can move while validation runs (for example because the
+          # temporary publisher itself was edited). Rebase only our source
+          # commit onto the latest remote main before pushing.
+          git fetch origin main
+          git rebase origin/main
           git push origin HEAD:main
 
       - name: Remove bootstrap branch
