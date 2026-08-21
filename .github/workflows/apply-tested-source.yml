@@ -1,0 +1,86 @@
+name: Apply tested source bundle
+
+# Temporary self-cleaning workflow. It reconstructs the exact source archive
+# already uploaded to the bootstrap branch, validates it, then replaces main
+# with that tested source tree and removes the bootstrap branch.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - .github/workflows/apply-tested-source.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fetch bootstrap source parts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin apply-raymarine-relay-v1
+          mkdir -p /tmp/ysle-parts /tmp/ysle-source
+          for n in 00 01 02 03 04; do
+            git show "origin/apply-raymarine-relay-v1:.bootstrap/source.part${n}" > "/tmp/ysle-parts/source.part${n}"
+          done
+          cat /tmp/ysle-parts/source.part* | base64 -d > /tmp/ysle-source.tar.gz
+          echo '92cd9c5df8cf1abd595b6de4bee597b19301df02fd07ea4d19437b1d10d28626  /tmp/ysle-source.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/ysle-source.tar.gz -C /tmp/ysle-source --strip-components=1
+
+      - name: Set up Go and validators
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache: false
+
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq lua5.1 rsync
+
+      - name: Replace working tree with tested source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='dist/' \
+            /tmp/ysle-source/ ./
+
+      - name: Validate and build ARMv7 package
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v luac5.1 >/dev/null 2>&1; then
+            luac5.1 -p package/root/usr/lib/lua/api/services/yachtsense_link_emulator.lua
+          else
+            luac -p package/root/usr/lib/lua/api/services/yachtsense_link_emulator.lua
+          fi
+          make check
+
+      - name: Publish tested source to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git status --short
+          git commit -m 'Add Raymarine app mDNS discovery relay'
+          git push origin HEAD:main
+
+      - name: Remove bootstrap branch
+        if: success()
+        shell: bash
+        run: git push origin --delete apply-raymarine-relay-v1 || true
