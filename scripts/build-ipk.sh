@@ -63,18 +63,19 @@ gzip -9 -n -c \
     --owner=0 --group=0 --numeric-owner -cf - . | gzip -9 -n > "$BUILD/data.tar.gz"
 )
 INSTALLED_SIZE="$(stat -c '%s' "$BUILD/data.tar.gz")"
-FIRMWARE_FIELD=''
-if [ -n "$RUTOS_FIRMWARE" ]; then
-  FIRMWARE_FIELD="Firmware: ${RUTOS_FIRMWARE}\\n"
-fi
 
 # Render the control metadata used both by opkg and the Package Manager.
 sed \
   -e "s/@VERSION@/${VERSION}/g" \
   -e "s/@RELEASE@/${RELEASE}/g" \
   -e "s/@INSTALLED_SIZE@/${INSTALLED_SIZE}/g" \
-  -e "s|@FIRMWARE_FIELD@|${FIRMWARE_FIELD}|g" \
   "$ROOT/package/control/control.in" > "$CONTROL/control"
+if [ -n "$RUTOS_FIRMWARE" ]; then
+  sed -i "s|^@FIRMWARE_FIELD@$|Firmware: ${RUTOS_FIRMWARE}|" "$CONTROL/control"
+else
+  sed -i '/^@FIRMWARE_FIELD@$/d' "$CONTROL/control"
+fi
+
 cp "$ROOT/package/control/conffiles" "$CONTROL/conffiles"
 install -m 0755 "$ROOT/package/control/postinst" "$CONTROL/postinst"
 install -m 0755 "$ROOT/package/control/prerm" "$CONTROL/prerm"
