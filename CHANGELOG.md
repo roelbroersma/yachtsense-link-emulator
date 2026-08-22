@@ -21,5 +21,5 @@ All notable changes to this project are documented here.
 - RutOS 7 UCI and procd integration.
 - VuCI page under **Services → YachtSense Link Emulator**.
 - Start/stop/restart, interface selection, live status and recent logs.
-- Reproducible `ipq40xx` IPK and source-archive build scripts.
+- Native RUTX `arm_cortex-a7_neon-vfpv4` IPK build and firmware-specific RutOS Package Manager `.tar.gz` bundles.
 - Unit, syntax, descriptor and package-layout checks.
