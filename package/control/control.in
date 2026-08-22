@@ -3,7 +3,8 @@ Version: @VERSION@-@RELEASE@
 Architecture: arm_cortex-a7_neon-vfpv4
 Router: RUTX
 tlt_name: yachtsense-link-emulator
-@FIRMWARE_FIELD@Maintainer: Roel Broersma
+@FIRMWARE_FIELD@
+Maintainer: Roel Broersma
 Section: net
 Priority: optional
 Depends: libc, api-core, vuci-ui-core
