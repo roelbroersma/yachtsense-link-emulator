@@ -49,15 +49,22 @@ if grep -RniE 'migrat(e|ion)|migrated_from|/usr/local/usr/share' package/control
   exit 1
 fi
 
-# Build and inspect the actual release package as the final integration check.
+# Build and inspect the actual RutOS-format release package. Teltonika's
+# ipkg-build emits a gzip-compressed tar .ipk, so do not regress to Debian ar.
 ./scripts/build-ipk.sh
-IPK="$(find dist -maxdepth 1 -name 'tlt_custom_pkg_yachtsense-link-emulator_*.ipk' | sort | tail -n 1)"
-ar t "$IPK" | grep -Fxq 'debian-binary'
-ar t "$IPK" | grep -Fxq 'control.tar.gz'
-ar t "$IPK" | grep -Fxq 'data.tar.gz'
+IPK="$(find dist -maxdepth 1 -name 'tlt_custom_pkg_yachtsense-link-emulator_*_arm_cortex-a7_neon-vfpv4.ipk' | sort | tail -n 1)"
+test -n "$IPK"
+tar -tzf "$IPK" | grep -Fxq './debian-binary'
+tar -tzf "$IPK" | grep -Fxq './control.tar.gz'
+tar -tzf "$IPK" | grep -Fxq './data.tar.gz'
+
 TMPDIR_CHECK="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_CHECK"' EXIT
-( cd "$TMPDIR_CHECK" && ar x "$ROOT/$IPK" )
+tar -xzf "$IPK" -C "$TMPDIR_CHECK"
 tar -tzf "$TMPDIR_CHECK/data.tar.gz" | grep -Fxq './www/views/services/YachtSenseLinkEmulator.js.gz'
+tar -xOzf "$TMPDIR_CHECK/control.tar.gz" ./control > "$TMPDIR_CHECK/control"
+grep -Fxq 'Architecture: arm_cortex-a7_neon-vfpv4' "$TMPDIR_CHECK/control"
+grep -Fxq 'Router: RUTX' "$TMPDIR_CHECK/control"
+grep -Fxq 'tlt_name: yachtsense-link-emulator' "$TMPDIR_CHECK/control"
 
 printf 'All checks passed for %s\n' "$IPK"
