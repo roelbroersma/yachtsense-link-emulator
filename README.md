@@ -433,7 +433,7 @@ Version **1.0.0** targets **Teltonika RUTX routers running RutOS 7**.
 | Item | Support |
 |---|---|
 | Operating system | RutOS 7.x |
-| Package target | `ipq40xx` / ARMv7 |
+| Package architecture | `arm_cortex-a7_neon-vfpv4` / ARMv7 |
 | Primary target | RUTX14 |
 | RUTX models using this platform | RUTX08, RUTX09, RUTX10, RUTX11, RUTX12, RUTX14, RUTX50, RUTXR1 |
 
@@ -441,12 +441,30 @@ The package uses normal RutOS 7 components: UCI, `procd`, VuCI, `rpcd` ACLs and 
 
 ## Installation
 
-Install the IPK from **System → Package Manager → Upload**, or over SSH:
+### RutOS Package Manager WebUI
+
+**System → Package Manager → Upload** expects a Teltonika Package Manager `.tar.gz`, not a loose `.ipk`. Offline packages are also tied to the exact RutOS firmware version installed on the router. Build the matching upload bundle with:
 
 ```sh
-scp tlt_custom_pkg_yachtsense-link-emulator_1.0.0-1_ipq40xx.ipk root@192.168.1.1:/tmp/
+RUTOS_FIRMWARE=RUTX_R_00.07.24.2 make package-manager
+```
+
+Use the exact value returned by `cat /etc/version` on the target router. The generated file is named like:
+
+```text
+yachtsense-link-emulator_1.0.0-1_RUTX_00.07.24.2.tar.gz
+```
+
+Upload that `.tar.gz` in Package Manager. Because this project is built outside Teltonika's package repository it is not signed by a Teltonika repository key, so RutOS can show it as an unverified custom package before installation.
+
+### SSH / opkg
+
+For direct installation over SSH, use the generated RUTX IPK:
+
+```sh
+scp tlt_custom_pkg_yachtsense-link-emulator_1.0.0-1_arm_cortex-a7_neon-vfpv4.ipk root@192.168.1.1:/tmp/
 ssh root@192.168.1.1
-opkg install /tmp/tlt_custom_pkg_yachtsense-link-emulator_1.0.0-1_ipq40xx.ipk
+opkg install /tmp/tlt_custom_pkg_yachtsense-link-emulator_1.0.0-1_arm_cortex-a7_neon-vfpv4.ipk
 ```
 
 Then open:
