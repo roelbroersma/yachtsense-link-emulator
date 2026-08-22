@@ -54,14 +54,17 @@ fi
 ./scripts/build-ipk.sh
 IPK="$(find dist -maxdepth 1 -name 'tlt_custom_pkg_yachtsense-link-emulator_*_arm_cortex-a7_neon-vfpv4.ipk' | sort | tail -n 1)"
 test -n "$IPK"
-tar -tzf "$IPK" | grep -Fxq './debian-binary'
-tar -tzf "$IPK" | grep -Fxq './control.tar.gz'
-tar -tzf "$IPK" | grep -Fxq './data.tar.gz'
 
 TMPDIR_CHECK="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_CHECK"' EXIT
+tar -tzf "$IPK" > "$TMPDIR_CHECK/ipk-files"
+grep -Fxq './debian-binary' "$TMPDIR_CHECK/ipk-files"
+grep -Fxq './control.tar.gz' "$TMPDIR_CHECK/ipk-files"
+grep -Fxq './data.tar.gz' "$TMPDIR_CHECK/ipk-files"
+
 tar -xzf "$IPK" -C "$TMPDIR_CHECK"
-tar -tzf "$TMPDIR_CHECK/data.tar.gz" | grep -Fxq './www/views/services/YachtSenseLinkEmulator.js.gz'
+tar -tzf "$TMPDIR_CHECK/data.tar.gz" > "$TMPDIR_CHECK/data-files"
+grep -Fxq './www/views/services/YachtSenseLinkEmulator.js.gz' "$TMPDIR_CHECK/data-files"
 tar -xOzf "$TMPDIR_CHECK/control.tar.gz" ./control > "$TMPDIR_CHECK/control"
 grep -Fxq 'Architecture: arm_cortex-a7_neon-vfpv4' "$TMPDIR_CHECK/control"
 grep -Fxq 'Router: RUTX' "$TMPDIR_CHECK/control"
