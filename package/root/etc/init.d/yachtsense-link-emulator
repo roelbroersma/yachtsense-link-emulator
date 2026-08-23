@@ -5,13 +5,39 @@ START=97
 STOP=10
 USE_PROCD=1
 
-# Package paths and runtime files. The managed-IP file records only an address
-# that this package added; the runtime file is read by the VuCI status API.
-PROG='/usr/sbin/yachtsense-link-emulator'
+# RutOS installs custom packages below opkg's `dest root` (normally /usr/local).
+# Storage expansion may change where that tree is physically stored, but the
+# logical path remains the configured dest root.
+PACKAGE_ROOT="$(awk '$1 == "dest" && $2 == "root" { print $3; exit }' /etc/opkg.conf 2>/dev/null)"
+[ -n "$PACKAGE_ROOT" ] || PACKAGE_ROOT='/'
+PACKAGE_ROOT="${PACKAGE_ROOT%/}"
+[ -n "$PACKAGE_ROOT" ] || PACKAGE_ROOT='/'
+if [ "$PACKAGE_ROOT" = '/' ]; then
+	PACKAGE_PREFIX=''
+else
+	PACKAGE_PREFIX="$PACKAGE_ROOT"
+fi
+
+PROG="${PACKAGE_PREFIX}/usr/sbin/yachtsense-link-emulator"
+SELF="${PACKAGE_PREFIX}/etc/init.d/yachtsense-link-emulator"
 MANAGED_IP_FILE='/var/run/yachtsense-link-emulator.managed-ip'
 RUNTIME_STATE_FILE='/var/run/yachtsense-link-emulator.runtime'
 LOG_TAG='yachtsense-link-emulator'
 UCI_CONFIG='yachtsense_link_emulator'
+
+# rc.common's default enable action assumes /etc/init.d. Custom packages live
+# below /usr/local on current RutOS, so create absolute rc.d links to this script.
+enable() {
+	mkdir -p /etc/rc.d
+	[ -n "$START" ] && ln -sf "$SELF" "/etc/rc.d/S${START}yachtsense-link-emulator"
+	[ -n "$STOP" ] && ln -sf "$SELF" "/etc/rc.d/K${STOP}yachtsense-link-emulator"
+	return 0
+}
+
+disable() {
+	rm -f "/etc/rc.d/S${START}yachtsense-link-emulator" "/etc/rc.d/K${STOP}yachtsense-link-emulator"
+	return 0
+}
 
 # Append one UCI list item to the comma-separated environment value consumed by
 # the dependency-free Go daemon.
@@ -162,7 +188,7 @@ start_service() {
 		logger -t "$LOG_TAG" "Existing UDP/5353 listener detected; socket reuse will be attempted: $listener"
 	fi
 
-	logger -t "$LOG_TAG" "Starting Axiom interface=$axiom_interface address=${ipaddr}/${prefix} remote interfaces=$remote_interfaces relay=$relay_mode"
+	logger -t "$LOG_TAG" "Starting executable=$PROG Axiom interface=$axiom_interface address=${ipaddr}/${prefix} remote interfaces=$remote_interfaces relay=$relay_mode"
 	procd_open_instance
 	procd_set_param command "$PROG"
 	procd_set_param env \
