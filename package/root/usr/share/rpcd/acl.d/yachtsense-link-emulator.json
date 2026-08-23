@@ -3,33 +3,16 @@
     "description": "Read and manage the YachtSense Link Emulator service",
     "read": {
       "api": [
-        "/yachtsense-link-emulator/*",
-        "/yachtsense-link-emulator-config/*",
-        "/yachtsense-link-emulator-save/*",
-        "/yachtsense-link-emulator-save-v105/*",
-        "/yachtsense-link-emulator-control-v105/*",
-        "/yachtsense-link-emulator-save-v106/*",
-        "/yachtsense-link-emulator-control-v106/*",
-        "/yachtsense-link-emulator-save-v107/*",
-        "/yachtsense-link-emulator-control-v107/*",
-        "/yachtsense-link-emulator-save-v108/*",
-        "/yachtsense-link-emulator-control-v108/*"
+        "/yachtsense-link-emulator-status-v109/*",
+        "/yachtsense-link-emulator-save-v109/*",
+        "/yachtsense-link-emulator-control-v109/*"
       ],
       "uci": ["yachtsense_link_emulator"]
     },
     "write": {
       "api": [
-        "/yachtsense-link-emulator/*",
-        "/yachtsense-link-emulator-config/*",
-        "/yachtsense-link-emulator-save/*",
-        "/yachtsense-link-emulator-save-v105/*",
-        "/yachtsense-link-emulator-control-v105/*",
-        "/yachtsense-link-emulator-save-v106/*",
-        "/yachtsense-link-emulator-control-v106/*",
-        "/yachtsense-link-emulator-save-v107/*",
-        "/yachtsense-link-emulator-control-v107/*",
-        "/yachtsense-link-emulator-save-v108/*",
-        "/yachtsense-link-emulator-control-v108/*"
+        "/yachtsense-link-emulator-save-v109/*",
+        "/yachtsense-link-emulator-control-v109/*"
       ],
       "uci": ["yachtsense_link_emulator"]
     }
