@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.4] - 2026-08-23
+
+- Fix HTTP 422 on `Save & apply`: RutOS FunctionService now receives `remote_interfaces` as an explicitly declared `{ list = true }` option.
+- Add a schema-safe save API that declares every submitted form field before applying detailed validation.
+- Add the save/config API routes to the package ACL so authenticated VuCI users can write the configuration.
+- Use a versioned `YachtSenseLinkEmulatorV104.js` entry point and versioned module import to force browser/VuCI cache invalidation after package upgrades.
+- Keep the v1.0.3 serialized status refresh and transient interface-address stabilization.
+
 ## [1.0.3] - 2026-08-23
 
 - Fix `Save & apply` by writing `remote_interface` as a real UCI list with `add_list` instead of passing a Lua table to `cursor:set`.
