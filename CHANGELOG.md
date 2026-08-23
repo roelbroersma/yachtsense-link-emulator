@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.12] - 2026-08-24
+
+- Make `Save & apply`, Start, Restart and Stop non-blocking from VuCI by scheduling bounded rc.common/procd actions in the background.
+- Add BusyBox `timeout` guards around service stop/start/enable/disable calls so a slow service transition can never hold the API request indefinitely.
+- Remove the full-page VuCI spinner from YachtSense actions; buttons still show local loading state.
+- Add explicit Axios timeouts for save/control/status requests and always release the local loading state in `finally`.
+- Refresh status asynchronously after a requested service transition instead of waiting for the daemon inside the API request.
+- Keep the working v1.0.11 daemon, `/usr/local` paths, package-root UCI handling, single-snapshot interface detection and upgrade-safe package lifecycle hooks.
+
 ## [1.0.11] - 2026-08-23
 
 - Make in-place RutOS upgrades safe by detecting `PKG_UPGRADE=1` in package lifecycle hooks.
