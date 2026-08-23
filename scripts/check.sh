@@ -4,6 +4,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+VERSION="$(tr -d '[:space:]' < VERSION)"
+RELEASE="${RELEASE:-1}"
 
 UNFORMATTED="$(gofmt -l cmd)"
 if [ -n "$UNFORMATTED" ]; then
@@ -56,12 +58,30 @@ grep -Fxq './debian-binary' "$TMPDIR_CHECK/ipk-files"
 grep -Fxq './control.tar.gz' "$TMPDIR_CHECK/ipk-files"
 grep -Fxq './data.tar.gz' "$TMPDIR_CHECK/ipk-files"
 tar -xzf "$IPK" -C "$TMPDIR_CHECK"
+
 tar -tzf "$TMPDIR_CHECK/data.tar.gz" > "$TMPDIR_CHECK/data-files"
+grep -Fxq './usr/sbin/yachtsense-link-emulator' "$TMPDIR_CHECK/data-files"
+grep -Fxq './etc/init.d/yachtsense-link-emulator' "$TMPDIR_CHECK/data-files"
+grep -Fxq './usr/share/vuci/menu.d/yachtsense-link-emulator.json' "$TMPDIR_CHECK/data-files"
+grep -Fxq './usr/share/vuci/path.d/yachtsense-link-emulator.json' "$TMPDIR_CHECK/data-files"
+grep -Fxq './usr/share/rpcd/acl.d/yachtsense-link-emulator.json' "$TMPDIR_CHECK/data-files"
 grep -Fxq './www/views/services/YachtSenseLinkEmulator.js.gz' "$TMPDIR_CHECK/data-files"
+
+tar -tzf "$TMPDIR_CHECK/control.tar.gz" > "$TMPDIR_CHECK/control-files"
+grep -Fxq './postinst' "$TMPDIR_CHECK/control-files"
+grep -Fxq './postinst-pkg' "$TMPDIR_CHECK/control-files"
+grep -Fxq './prerm' "$TMPDIR_CHECK/control-files"
+grep -Fxq './prerm-pkg' "$TMPDIR_CHECK/control-files"
+grep -Fxq './postrm' "$TMPDIR_CHECK/control-files"
+
 tar -xOzf "$TMPDIR_CHECK/control.tar.gz" ./control > "$TMPDIR_CHECK/control"
+tar -xOzf "$TMPDIR_CHECK/control.tar.gz" ./postinst > "$TMPDIR_CHECK/postinst"
+tar -xOzf "$TMPDIR_CHECK/control.tar.gz" ./prerm > "$TMPDIR_CHECK/prerm"
 grep -Fxq 'Architecture: arm_cortex-a7_neon-vfpv4' "$TMPDIR_CHECK/control"
 grep -Fxq 'Router: RUTX' "$TMPDIR_CHECK/control"
 grep -Fxq 'tlt_name: yachtsense-link-emulator' "$TMPDIR_CHECK/control"
+grep -Fq 'default_postinst "$0" "$@"' "$TMPDIR_CHECK/postinst"
+grep -Fq 'default_prerm "$0" "$@"' "$TMPDIR_CHECK/prerm"
 if grep -q '^Firmware:' "$TMPDIR_CHECK/control"; then
   echo 'Generic IPK must not be tied to a RutOS firmware release.' >&2
   exit 1
@@ -70,8 +90,8 @@ fi
 # Build the two WebUI wrappers currently published by Teltonika for RUTX:
 # Stable 7.24.1 and Latest 7.24.2. Only main/Firmware may differ.
 bash scripts/build-current-pm-bundles.sh
-STABLE="dist/yachtsense-link-emulator_1.0.0-1_RUTX_00.07.24.1.tar.gz"
-LATEST="dist/yachtsense-link-emulator_1.0.0-1_RUTX_00.07.24.2.tar.gz"
+STABLE="dist/yachtsense-link-emulator_${VERSION}-${RELEASE}_RUTX_00.07.24.1.tar.gz"
+LATEST="dist/yachtsense-link-emulator_${VERSION}-${RELEASE}_RUTX_00.07.24.2.tar.gz"
 for bundle in "$STABLE" "$LATEST"; do
   test -f "$bundle"
   tar -tzf "$bundle" > "$TMPDIR_CHECK/$(basename "$bundle").files"
