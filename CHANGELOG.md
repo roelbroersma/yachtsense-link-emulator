@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2] - 2026-08-23
+
+- Fix the VuCI layout under RutOS Content Security Policy by moving package styling to an external same-origin stylesheet.
+- Add a CSP-safe wrapper view that loads the stylesheet from `/assets/yachtsense-link-emulator.css`.
+- Rework the page into a readable responsive two-column card layout with proper spacing, forms, status badges, interface cards, actions and log panels.
+- Mark the YachtSense page as the package `main_page` so Package Manager links directly to the intended view.
+
 ## [1.0.1] - 2026-08-23
 
 - Fix RutOS package lifecycle integration by using the native `default_postinst` and `default_prerm` wrappers.
