@@ -7,7 +7,9 @@
         "/yachtsense-link-emulator-config/*",
         "/yachtsense-link-emulator-save/*",
         "/yachtsense-link-emulator-save-v105/*",
-        "/yachtsense-link-emulator-control-v105/*"
+        "/yachtsense-link-emulator-control-v105/*",
+        "/yachtsense-link-emulator-save-v106/*",
+        "/yachtsense-link-emulator-control-v106/*"
       ],
       "uci": ["yachtsense_link_emulator"]
     },
@@ -17,7 +19,9 @@
         "/yachtsense-link-emulator-config/*",
         "/yachtsense-link-emulator-save/*",
         "/yachtsense-link-emulator-save-v105/*",
-        "/yachtsense-link-emulator-control-v105/*"
+        "/yachtsense-link-emulator-control-v105/*",
+        "/yachtsense-link-emulator-save-v106/*",
+        "/yachtsense-link-emulator-control-v106/*"
       ],
       "uci": ["yachtsense_link_emulator"]
     }
