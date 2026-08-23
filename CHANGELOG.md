@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.8] - 2026-08-23
+
+- Fix `Save & apply` on RutOS builds where the Lua `uci` binding exposes neither `add_list()` nor `set_list()`.
+- Write and read `remote_interface` list values through the native RutOS `uci` CLI instead of unsupported Lua cursor list methods.
+- Keep scalar UCI settings on the existing Lua cursor path.
+- Retain the `/usr/local` opkg-root handling and storage-expansion compatibility introduced in v1.0.7.
+- Retain managed RayNet-address ownership protection and stable-PID Start/Restart verification.
+- Add dedicated v1.0.8 save/control API routes and a cache-busted VuCI entry point.
+
 ## [1.0.7] - 2026-08-23
 
 - Resolve the daemon and init-script paths from RutOS opkg `dest root` instead of assuming `/usr/sbin` and `/etc/init.d`.
@@ -7,11 +16,11 @@
 - Make the init script execute the daemon from the resolved package root.
 - Create absolute `/etc/rc.d` autostart links to the package init script so boot-time startup also works from `/usr/local`.
 - Add dedicated v1.0.7 save/control API routes and a cache-busted VuCI entry point.
-- Retain all v1.0.6 fixes for `set_list()`, managed RayNet address ownership and stable-PID verification.
+- Retain all v1.0.6 fixes for managed RayNet address ownership and stable-PID verification.
 
 ## [1.0.6] - 2026-08-23
 
-- Fix `Save & apply` on RutOS by using the supported UCI `cursor:set_list()` method instead of the unavailable `cursor:add_list()` method.
+- Attempt to fix `Save & apply` with UCI `cursor:set_list()`; later RutOS testing showed this method is also unavailable in the target Lua binding and is superseded by v1.0.8.
 - Preserve an existing RayNet address when `Manage RayNet IPv4 address` is disabled by relinquishing stale package ownership before restart.
 - Verify Start/Restart with a stable daemon PID across several seconds, so a procd crash/respawn loop is no longer reported as success.
 - Add dedicated v1.0.6 save/control API routes and a cache-busted VuCI entry point.
@@ -36,7 +45,7 @@
 
 ## [1.0.3] - 2026-08-23
 
-- Fix `Save & apply` by writing `remote_interface` as a real UCI list with `add_list` instead of passing a Lua table to `cursor:set`.
+- Attempt to write `remote_interface` as a UCI list with `add_list()`; target RutOS testing later showed this cursor method is unavailable.
 - Add a dedicated validated configuration-save endpoint that accepts normal JSON `false` boolean values and returns useful error messages.
 - Prevent overlapping five-second status requests in the VuCI page.
 - Keep the last valid IPv4 interface snapshot across up to two transient empty samples, preventing `br-lan` and other interfaces from visually jumping between a CIDR and `No IPv4 address detected`.
