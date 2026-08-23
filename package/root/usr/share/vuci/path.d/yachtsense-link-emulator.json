@@ -1,5 +1,8 @@
 [
   {
     "/yachtsense-link-emulator/{service_group}/{?sid}": "services/yachtsense_link_emulator"
+  },
+  {
+    "/yachtsense-link-emulator-config/{service_group}/{?sid}": "services/yachtsense_link_emulator_config"
   }
 ]
