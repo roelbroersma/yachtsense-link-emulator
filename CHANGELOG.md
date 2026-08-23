@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.9] - 2026-08-23
+
+- Move all configuration writes to the native RutOS `uci` CLI, avoiding firmware-specific Lua `uci` cursor methods completely.
+- Wrap Start, Restart and Stop actions so backend exceptions return a useful WebUI message instead of HTTP 500.
+- Add a dedicated status API that captures all IPv4 addresses from one `ip -o -4 addr show` snapshot per refresh.
+- Keep the last valid interface address briefly when an individual poll is transiently incomplete, preventing `br-lan` from visually alternating between its CIDR and `No IPv4 address detected`.
+- Remove the large browser focus rectangle that remained around native checkboxes after clicking them.
+- Keep opkg `dest root` path handling for `/usr/local` and storage-expansion installations.
+- Route the active VuCI page only through the v1.0.9 status/save/control APIs.
+
 ## [1.0.8] - 2026-08-23
 
 - Fix `Save & apply` on RutOS builds where the Lua `uci` binding exposes neither `add_list()` nor `set_list()`.
