@@ -5,7 +5,9 @@
       "api": [
         "/yachtsense-link-emulator/*",
         "/yachtsense-link-emulator-config/*",
-        "/yachtsense-link-emulator-save/*"
+        "/yachtsense-link-emulator-save/*",
+        "/yachtsense-link-emulator-save-v105/*",
+        "/yachtsense-link-emulator-control-v105/*"
       ],
       "uci": ["yachtsense_link_emulator"]
     },
@@ -13,7 +15,9 @@
       "api": [
         "/yachtsense-link-emulator/*",
         "/yachtsense-link-emulator-config/*",
-        "/yachtsense-link-emulator-save/*"
+        "/yachtsense-link-emulator-save/*",
+        "/yachtsense-link-emulator-save-v105/*",
+        "/yachtsense-link-emulator-control-v105/*"
       ],
       "uci": ["yachtsense_link_emulator"]
     }
