@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.5] - 2026-08-23
+
+- Make `Save & apply` schema-proof by transporting the complete form as one JSON string instead of separate FunctionService boolean/list fields.
+- Add strict network preflight validation: when managed addressing is disabled, the configured RayNet CIDR must already exist on the selected Axiom interface.
+- Reject Raymarine app interfaces that do not currently have an IPv4 address when they are distinct from the Axiom interface.
+- Add verified Start/Restart actions that wait for the daemon to remain alive before reporting success.
+- Return the latest YachtSense service log lines when procd accepts a start but the daemon immediately exits.
+- Add a cache-busted `YachtSenseLinkEmulatorV105.js` entry point plus dedicated v1.0.5 save/control API routes and ACL permissions.
+
 ## [1.0.4] - 2026-08-23
 
 - Fix HTTP 422 on `Save & apply`: RutOS FunctionService now receives `remote_interfaces` as an explicitly declared `{ list = true }` option.
