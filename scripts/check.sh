@@ -32,9 +32,11 @@ done
 
 if command -v luac >/dev/null 2>&1; then
   luac -p package/root/usr/lib/lua/api/services/yachtsense_link_emulator.lua
+  luac -p package/root/usr/lib/lua/api/services/yachtsense_link_emulator_config.lua
 fi
 if command -v node >/dev/null 2>&1; then
   node --check package/root/www/views/services/YachtSenseLinkEmulator.js
+  node --check package/root/www/views/services/YachtSenseLinkEmulatorStyled.js
 fi
 
 if [ -e package/root/www/views/services/YachtSenseLink.js ]; then
@@ -65,6 +67,10 @@ grep -Fxq './etc/init.d/yachtsense-link-emulator' "$TMPDIR_CHECK/data-files"
 grep -Fxq './usr/share/vuci/menu.d/yachtsense-link-emulator.json' "$TMPDIR_CHECK/data-files"
 grep -Fxq './usr/share/vuci/path.d/yachtsense-link-emulator.json' "$TMPDIR_CHECK/data-files"
 grep -Fxq './usr/share/rpcd/acl.d/yachtsense-link-emulator.json' "$TMPDIR_CHECK/data-files"
+grep -Fxq './usr/lib/lua/api/services/yachtsense_link_emulator.lua' "$TMPDIR_CHECK/data-files"
+grep -Fxq './usr/lib/lua/api/services/yachtsense_link_emulator_config.lua' "$TMPDIR_CHECK/data-files"
+grep -Fxq './www/views/services/YachtSenseLinkEmulatorStyled.js' "$TMPDIR_CHECK/data-files"
+grep -Fxq './www/assets/yachtsense-link-emulator.css' "$TMPDIR_CHECK/data-files"
 grep -Fxq './www/views/services/YachtSenseLinkEmulator.js.gz' "$TMPDIR_CHECK/data-files"
 
 tar -tzf "$TMPDIR_CHECK/control.tar.gz" > "$TMPDIR_CHECK/control-files"
