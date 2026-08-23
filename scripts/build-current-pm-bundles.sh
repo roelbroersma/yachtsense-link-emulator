@@ -9,11 +9,11 @@ RUTOS_LATEST="${RUTOS_LATEST:-RUTX_R_00.07.24.2}"
 
 # Build the generic payload once. Both wrapper archives must contain the exact
 # same IPK; only their top-level main metadata differs in Firmware:.
-"$ROOT/scripts/build-ipk.sh"
-"$ROOT/scripts/build-pm-bundle.sh" "$RUTOS_STABLE"
+bash "$ROOT/scripts/build-ipk.sh"
+bash "$ROOT/scripts/build-pm-bundle.sh" "$RUTOS_STABLE"
 
 if [ "$RUTOS_LATEST" != "$RUTOS_STABLE" ]; then
-  "$ROOT/scripts/build-pm-bundle.sh" "$RUTOS_LATEST"
+  bash "$ROOT/scripts/build-pm-bundle.sh" "$RUTOS_LATEST"
 fi
 
 printf 'Current RUTX wrappers: stable=%s latest=%s\n' "$RUTOS_STABLE" "$RUTOS_LATEST"
