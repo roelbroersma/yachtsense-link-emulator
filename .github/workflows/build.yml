@@ -48,10 +48,9 @@ jobs:
             dist/*.tar.gz
           retention-days: 14
 
-      # Normal releases are tag driven. The same job also supports the single
-      # release-v1.0.0 PR used to publish the first release without requiring a
-      # locally authenticated git/gh client.
-      - name: Create GitHub release
+      # Normal releases are tag driven. The single release-v1.0.0 PR is also
+      # allowed to refresh the first release with the corrected RutOS artifacts.
+      - name: Publish GitHub release
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'pull_request' && github.head_ref == 'release-v1.0.0')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -64,8 +63,19 @@ jobs:
             tag="v1.0.0"
           fi
 
-          gh release create "$tag" \
-            dist/*.ipk dist/*.sha256 dist/*.tar.gz \
-            --target main \
-            --title "YachtSense Link Emulator $tag" \
-            --notes $'YachtSense Link Emulator for Teltonika RUTX / RutOS 7.\n\nDownloads:\n- Generic RUTX IPK: firmware-independent, for SSH/opkg.\n- RutOS 7.24.1 WebUI bundle: current Stable firmware.\n- RutOS 7.24.2 WebUI bundle: current Latest firmware.\n\nThe two WebUI bundles contain the same generic IPK; only the Teltonika Package Manager Firmware metadata differs.'
+          notes=$'YachtSense Link Emulator for Teltonika RUTX / RutOS 7.\n\nDownloads:\n- Generic RUTX IPK: firmware-independent, for SSH/opkg.\n- RutOS 7.24.1 WebUI bundle: current Stable firmware.\n- RutOS 7.24.2 WebUI bundle: current Latest firmware.\n\nThe two WebUI bundles contain the same generic IPK; only the Teltonika Package Manager Firmware metadata differs.'
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" \
+              dist/*.ipk dist/*.sha256 dist/*.tar.gz \
+              --clobber
+            gh release edit "$tag" \
+              --title "YachtSense Link Emulator $tag" \
+              --notes "$notes"
+          else
+            gh release create "$tag" \
+              dist/*.ipk dist/*.sha256 dist/*.tar.gz \
+              --target main \
+              --title "YachtSense Link Emulator $tag" \
+              --notes "$notes"
+          fi
