@@ -7,5 +7,11 @@
   },
   {
     "/yachtsense-link-emulator-save/{service_group}/{?sid}": "services/yachtsense_link_emulator_save"
+  },
+  {
+    "/yachtsense-link-emulator-save-v105/{service_group}/{?sid}": "services/yachtsense_link_emulator_save_v105"
+  },
+  {
+    "/yachtsense-link-emulator-control-v105/{service_group}/{?sid}": "services/yachtsense_link_emulator_control_v105"
   }
 ]
