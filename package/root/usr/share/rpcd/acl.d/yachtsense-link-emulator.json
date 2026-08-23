@@ -2,11 +2,17 @@
   "services/yachtsense-link-emulator": {
     "description": "Read and manage the YachtSense Link Emulator service",
     "read": {
-      "api": ["/yachtsense-link-emulator/*"],
+      "api": [
+        "/yachtsense-link-emulator/*",
+        "/yachtsense-link-emulator-config/*"
+      ],
       "uci": ["yachtsense_link_emulator"]
     },
     "write": {
-      "api": ["/yachtsense-link-emulator/*"],
+      "api": [
+        "/yachtsense-link-emulator/*",
+        "/yachtsense-link-emulator-config/*"
+      ],
       "uci": ["yachtsense_link_emulator"]
     }
   }
