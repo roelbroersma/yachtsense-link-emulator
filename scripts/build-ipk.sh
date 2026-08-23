@@ -50,9 +50,30 @@ sed \
   -e "s/@INSTALLED_SIZE@/${INSTALLED_SIZE}/g" \
   "$ROOT/package/control/control.in" > "$CONTROL/control"
 cp "$ROOT/package/control/conffiles" "$CONTROL/conffiles"
-install -m 0755 "$ROOT/package/control/postinst" "$CONTROL/postinst"
-install -m 0755 "$ROOT/package/control/prerm" "$CONTROL/prerm"
+
+# RutOS packages do not put package-specific logic directly in postinst/prerm.
+# The normal wrappers source /lib/functions.sh and call default_postinst/prerm;
+# those functions then source postinst-pkg/prerm-pkg and perform the standard
+# init-script, ACL, rpcd and VuCI route lifecycle handling.
+cat > "$CONTROL/postinst" <<'EOF'
+#!/bin/sh
+[ "${IPKG_NO_SCRIPT:-}" = "1" ] && exit 0
+[ -s "${IPKG_INSTROOT:-}/lib/functions.sh" ] || exit 0
+. "${IPKG_INSTROOT:-}/lib/functions.sh"
+default_postinst "$0" "$@"
+EOF
+
+cat > "$CONTROL/prerm" <<'EOF'
+#!/bin/sh
+[ -s "${IPKG_INSTROOT:-}/lib/functions.sh" ] || exit 0
+. "${IPKG_INSTROOT:-}/lib/functions.sh"
+default_prerm "$0" "$@"
+EOF
+
+install -m 0755 "$ROOT/package/control/postinst" "$CONTROL/postinst-pkg"
+install -m 0755 "$ROOT/package/control/prerm" "$CONTROL/prerm-pkg"
 install -m 0755 "$ROOT/package/control/postrm" "$CONTROL/postrm"
+chmod 0755 "$CONTROL/postinst" "$CONTROL/prerm"
 
 (
   cd "$CONTROL"
