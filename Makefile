@@ -12,7 +12,7 @@ build:
 
 # One firmware-independent RUTX payload for SSH/opkg and all PM wrappers.
 package:
-	./scripts/build-ipk.sh
+	bash ./scripts/build-ipk.sh
 
 # Build one RutOS WebUI wrapper around the generic IPK.
 package-manager: package
@@ -21,11 +21,11 @@ package-manager: package
 		echo 'Example: RUTOS_FIRMWARE=RUTX_R_00.07.24.2 make package-manager' >&2; \
 		exit 1; \
 	}
-	./scripts/build-pm-bundle.sh "$(RUTOS_FIRMWARE)"
+	bash ./scripts/build-pm-bundle.sh "$(RUTOS_FIRMWARE)"
 
 # Build wrappers for Teltonika's current RUTX Stable and Latest releases.
 package-manager-current:
-	./scripts/build-current-pm-bundles.sh
+	bash ./scripts/build-current-pm-bundles.sh
 
 source:
 	./scripts/source-archive.sh
