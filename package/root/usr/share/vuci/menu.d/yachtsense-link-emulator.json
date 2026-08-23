@@ -2,7 +2,7 @@
   "services/yachtsense-link-emulator": {
     "title": "YachtSense Link Emulator",
     "index": 950,
-    "view": "services/YachtSenseLinkEmulatorV108",
+    "view": "services/YachtSenseLinkEmulatorV109",
     "main_page": true,
     "acls": ["services/yachtsense-link-emulator"]
   }
