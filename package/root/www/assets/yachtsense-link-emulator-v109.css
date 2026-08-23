@@ -1,0 +1,11 @@
+/* v1.0.9 UI overrides. */
+
+/* RutOS/Chrome draws a large focus rectangle around native checkboxes after a
+ * mouse click. Keep the normal checkbox itself, but remove that stray box. */
+.ysle-page .ysle-check input[type="checkbox"]:focus,
+.ysle-page .ysle-check input[type="checkbox"]:focus-visible,
+.ysle-page .ysle-switch input[type="checkbox"]:focus,
+.ysle-page .ysle-switch input[type="checkbox"]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
