@@ -1,115 +1,53 @@
 # YachtSense Link Emulator
 
-**YachtSense Link Emulator** makes a Teltonika RUTX router look like a Raymarine YachtSense Link to both **Axiom / LightHouse** and the **Raymarine mobile app**.
+**YachtSense Link Emulator** makes a Teltonika RUTX behave like a Raymarine YachtSense Link on the network.
 
-That fixes two slightly odd limitations in the normal Raymarine setup:
+That gives an Axiom two useful things immediately:
 
-1. An Axiom that is already connected to the router by **Ethernet / RayNet** can use that same wired connection for internet access. It no longer needs a second connection over the Axiom's own Wi-Fi just to get online.
-2. The Raymarine app can discover and control the Axiom from your **normal boat Wi-Fi**, even when the phone and Axiom live on different routed subnets or VLANs.
+- **Internet over its existing Ethernet / RayNet connection.** The MFD no longer has to join Wi-Fi just to get online while it is already cabled to the router.
+- **Raymarine app discovery from your own Wi-Fi.** The phone can stay on the normal boat WLAN while the Axiom remains on its wired RayNet subnet.
 
-To LightHouse, the Teltonika presents the same YachtSense Link discovery identity that Raymarine expects. To the mobile app, it also makes the Axiom's remote-view services visible on the selected app networks.
-
-A typical setup looks like this:
+The emulator publishes the YachtSense identity LightHouse expects, answers the YachtSense liveness check, and can selectively relay the Raymarine mDNS services used by the current mobile app.
 
 ```text
-                     Teltonika RUTX
-                  ┌───────────────────┐
-Internet / 4G/5G ─┤                   ├─ Wi-Fi ─ Phone / tablet
-                  │  YachtSense Link  │           192.168.40.x
-                  │     Emulator      │
-                  │                   ├─ Ethernet / RayNet ─ Axiom
-                  └───────────────────┘                    198.18.x.x
+                       Teltonika RUTX
+                    ┌───────────────────┐
+Internet / 4G / 5G ─┤                   ├── Wi-Fi ── Phone / tablet
+                    │  YachtSense Link  │             192.168.40.x
+                    │     Emulator      │
+                    │                   ├── RayNet ── Axiom
+                    └───────────────────┘             198.18.x.x
 ```
 
-The Axiom can now reach the internet through the RUTX over Ethernet, while the phone can stay on the boat's normal Wi-Fi and still use Raymarine screen mirroring and remote control.
+With suitable routing the same idea can also be carried over a VPN. VXLAN over WireGuard/IPsec is particularly handy when you want to extend the layer-2 multicast domain; a routed VPN can also work when the relay is bound to the VPN interface and the Axiom subnet is reachable.
 
-With suitable routing and multicast transport, the same design can also be extended across a VPN. A bridged overlay such as **VXLAN over WireGuard/IPsec** is particularly useful because it can carry the layer-2 multicast discovery used by mDNS. A routed VPN can work as well when the emulator relays mDNS onto the VPN interface and the Axiom IP is routable from the remote client.
+## How it works
 
-## Contents
+### Axiom side
 
-- [What this changes](#what-this-changes)
-- [How does it work?](#how-does-it-work)
-- [Protocol](#protocol)
-- [Raymarine app discovery relay](#raymarine-app-discovery-relay)
-- [Internet over Ethernet](#internet-over-ethernet)
-- [Screen mirroring from your own Wi-Fi](#screen-mirroring-from-your-own-wi-fi)
-- [Remote access over VPN / VXLAN](#remote-access-over-vpn--vxlan)
-- [mDNS and DNS-SD](#mdns-and-dns-sd)
-- [Existing mDNS / Avahi handling](#existing-mdns--avahi-handling)
-- [Logging and diagnostics](#logging-and-diagnostics)
-- [Technical background](#technical-background)
-- [Compatibility](#compatibility)
-- [Installation](#installation)
-- [RutOS WebUI](#rutos-webui)
-- [Configuration](#configuration)
-- [Build](#build)
-- [License](#license)
+LightHouse does not treat every DHCP/default-gateway router as YachtSense Link. It first discovers a YachtSense service over mDNS/DNS-SD and then performs a separate liveness check.
 
-## What this changes
-
-### Axiom internet without switching to Wi-Fi
-
-A normal Ethernet router is not automatically treated by LightHouse as a YachtSense Link internet source. That is why an Axiom can be physically connected to a router over Ethernet and still ask you to configure Wi-Fi when it needs internet access.
-
-The emulator adds the YachtSense Link discovery and liveness behaviour that LightHouse checks. Once the RUTX is recognised as YachtSense Link, the Axiom can use the **existing Ethernet / RayNet path** to the router.
-
-The RUTX then handles internet access like any other routed client:
+The emulator publishes:
 
 ```text
-Axiom
-  │ Ethernet / RayNet
-  ▼
-RUTX
-  ├─ 4G / 5G
-  ├─ Wi-Fi WAN
-  ├─ Ethernet WAN
-  └─ RutOS failover / load balancing
+service:  yachtsense-main Settings._http._tcp.local
+hostname: yachtsense-main.local
+
+TXT id=E70640 AF002A4
+TXT model=Raymarine YachtSense Link
+TXT version=V142.242.530
+TXT mac=<MAC of selected RUTX interface>
 ```
 
-There is no need for the Axiom itself to associate with the RUTX Wi-Fi just to reach the internet.
+The important product identifier is `E70640`. After resolving the service, LightHouse also checks TCP `7777`; the emulator answers with HTTP `200 OK`.
 
-### Raymarine app on your own Wi-Fi
+Once LightHouse accepts the RUTX as YachtSense Link, the Axiom can use its existing Ethernet/RayNet path for normal routed internet traffic. Which WAN ultimately carries that traffic is just ordinary RutOS policy: mobile WAN, Wi-Fi WAN, Ethernet WAN, failover, load balancing, and so on.
 
-The current Raymarine app discovers the MFD directly with mDNS/DNS-SD. It does not send the screen through YachtSense Link.
+### Raymarine app side
 
-So the phone can remain connected to the normal RUTX Wi-Fi while the Axiom remains wired. The emulator makes the necessary Raymarine discovery visible across the selected interfaces, after which the app connects directly to the Axiom IP for video and control.
+The current Raymarine Android app uses Android NSD/mDNS directly. It first recognises the YachtSense router and then discovers the MFD itself.
 
-For example:
-
-```text
-Phone                     RUTX                         Axiom
-192.168.40.50              192.168.40.1                198.18.0.23
-     │                          │                            │
-     └──── normal Wi-Fi ────────┤──── routed RayNet ────────┘
-
-mDNS discovery: selectively relayed
-RTSP/control:    normal routed unicast traffic
-```
-
-## How does it work?
-
-There are two separate discovery paths.
-
-### 1. Axiom recognises the RUTX as YachtSense Link
-
-LightHouse browses `_http._tcp` over mDNS. The emulator publishes the YachtSense Link identity:
-
-```text
-id=E70640 AF002A4
-model=Raymarine YachtSense Link
-hostname=yachtsense-main
-service=yachtsense-main Settings._http._tcp.local
-```
-
-LightHouse recognises product ID `E70640`, resolves the service to the RUTX RayNet-side address and then performs the YachtSense connection check on TCP port `7777`.
-
-The emulator answers that check with HTTP `200 OK`.
-
-### 2. The Raymarine app discovers the Axiom
-
-The mobile app first sees `yachtsense-main` as an onboard YachtSense Link device. It then performs its own mDNS searches for the MFD.
-
-The current Android app browses:
+The app browses these service types:
 
 ```text
 _http._tcp.local
@@ -119,251 +57,49 @@ _raydb._tcp.local
 _services._dns-sd._udp.local
 ```
 
-The emulator can selectively relay those searches between the **Raymarine app interface(s)** and the **Axiom / RayNet interface**.
+The emulator can relay those Raymarine discovery packets between one **Axiom / RayNet interface** and one or more **Raymarine app interfaces**.
 
-When the app has resolved the Axiom, it talks directly to the MFD. YachtSense Link is not in the video or touch-control data path.
+A discovery is not only a PTR record. Android NSD follows the service through `SRV`, `TXT`, `A` and `AAAA`, so the daemon learns the related instance and host names and forwards those follow-up lookups as well.
 
-## Protocol
+After discovery, the phone connects directly to the Axiom. The emulator is not in the video path.
 
-### YachtSense Link advertisement
-
-The default DNS-SD identity is:
-
-```text
-PTR  _http._tcp.local
-     -> yachtsense-main Settings._http._tcp.local
-
-SRV  yachtsense-main Settings._http._tcp.local
-     -> yachtsense-main.local:80
-
-TXT  id=E70640 AF002A4
-TXT  model=Raymarine YachtSense Link
-TXT  version=V142.242.530
-TXT  mac=<MAC of selected Teltonika interface>
-
-A    yachtsense-main.local
-     -> <RUTX address on that network>
-```
-
-Defaults:
-
-```text
-Product ID:       E70640
-Serial:           AF002A4
-Hostname:         yachtsense-main
-Service instance: yachtsense-main Settings
-Version:          V142.242.530
-```
-
-The MAC address is read from the selected RUTX interface at runtime.
-
-### Connection monitor
-
-The Axiom also checks the YachtSense candidate on:
-
-```text
-TCP 7777
-```
-
-The emulator responds:
-
-```http
-HTTP/1.1 200 OK
-Content-Type: text/plain; charset=utf-8
-Cache-Control: no-store
-
-OK
-```
-
-The DNS-SD SRV record still advertises TCP port `80`, just like the real YachtSense Link. Port `7777` is a separate LightHouse connection/liveness check.
-
-## Raymarine app discovery relay
-
-The relay is deliberately Raymarine-aware rather than a generic Bonjour reflector.
-
-It recognises these service types:
-
-| Service | Purpose |
-|---|---|
-| `_http._tcp.local` | Onboard devices / YachtSense Link |
-| `_rtsp._tcp.local` | MFD screen stream discovery |
-| `_rym_rrc._tcp.local` | Raymarine remote control |
-| `_raydb._tcp.local` | MFD / Raymarine database discovery |
-| `_services._dns-sd._udp.local` | DNS-SD service enumeration |
-
-A DNS-SD discovery does not stop at the first PTR record. A typical Axiom announcement looks like:
-
-```text
-PTR  _rtsp._tcp.local
-     -> Axiom 7._rtsp._tcp.local
-
-SRV  Axiom 7._rtsp._tcp.local
-     -> axiom-123.local:8554
-
-TXT  ...
-A    axiom-123.local
-     -> 198.18.0.23
-```
-
-The emulator therefore learns the related instance and hostname while discovery is active and also relays the required follow-up `SRV`, `TXT`, `A` and `AAAA` lookups.
-
-### Relay direction
-
-```text
-Raymarine app network                 Axiom / RayNet network
-
-_http/_rtsp/_rym/_raydb queries ─────────────►
-                                             Axiom
-                                  ◄─────────── PTR/SRV/TXT/A/AAAA
-```
-
-The app-side networks are not bridged together and unrelated Bonjour traffic is not intentionally forwarded.
-
-### Same bridge: no reflector needed
-
-If the phone and Axiom are already on the same Linux bridge, mDNS is visible at layer 2 even when their IP addresses are in different subnets.
-
-Example:
-
-```text
-br-lan
-  RUTX 192.168.40.1/24
-  RUTX 198.18.0.1/21
-
-Phone 192.168.40.50/24
-Axiom 198.18.0.23/21
-```
-
-The phone hears the Axiom's multicast directly. When it later opens `198.18.0.23`, it sends that unicast packet to its normal gateway and the RUTX routes it back onto the same bridge.
-
-In **Automatic** mode the emulator detects this and does not start a needless reflector.
-
-## Internet over Ethernet
-
-This is one of the main reasons for the emulator.
-
-An Axiom may already be hard-wired into the boat network but still refuse to treat an arbitrary Ethernet router as its internet source. LightHouse has specific YachtSense Link discovery logic, so simply supplying a DHCP gateway is not the same thing.
-
-By reproducing the YachtSense identity and liveness check, the RUTX becomes the recognised wired internet path.
-
-The actual internet traffic is then completely normal routing:
-
-```text
-Axiom 198.18.x.x
-      │
-      ▼
-RUTX 198.18.0.1
-      │
-      ├─ mobile WAN
-      ├─ marina Wi-Fi WAN
-      └─ any other RutOS WAN/failover path
-```
-
-DHCP, DNS, NAT, firewalling and WAN selection remain ordinary RutOS configuration. The emulator only supplies the Raymarine-specific recognition layer that was missing.
-
-## Screen mirroring from your own Wi-Fi
-
-Once discovery is visible and the Axiom IP is routable, the Raymarine app connects directly to the MFD.
-
-Current app behaviour includes:
+Current app endpoints include:
 
 ```text
 rtsp://<Axiom-IP>:8554/RAYMARINEMFD
 ```
 
-and these remote-view/control ports:
+with remote-control related traffic on TCP `50000` and the app's `49111` control/discovery state.
 
-| Port | Use |
-|---|---|
-| `8554/TCP` | RTSP screen stream |
-| `50000/TCP` | Touch-capable remote control |
-| `49111` | Control/discovery state used by the app |
+## mDNS relay
 
-So screen mirroring can work while the phone remains on your own RUTX Wi-Fi. There is no requirement for the phone to join the Axiom's own Wi-Fi when the discovery and routing are available through the router.
-
-The video and touch-control TCP sessions are not proxied by the emulator; they are simply routed between the phone and Axiom.
-
-## Remote access over VPN / VXLAN
-
-The same principle is not limited to Wi-Fi on the boat.
-
-If a remote network can see the Raymarine mDNS discovery and can route to the Axiom IP, the Raymarine app can in principle use the same direct MFD endpoints across that path.
-
-A practical topology is:
+Raymarine discovery here is mDNS on:
 
 ```text
-Home / remote LAN
-      │
-      │ WireGuard / IPsec
-      │       + VXLAN
-      ▼
-RUTX / boat LAN ───── RayNet ───── Axiom
+224.0.0.251 / UDP 5353
 ```
 
-A **VXLAN or other L2 overlay** is convenient because mDNS is link-local multicast and can travel over the extended bridge just as it does locally. In that design the phone can appear to be on an app-side layer-2 network at the boat.
+It is not ordinary DNS on port 53.
 
-A pure routed VPN can also be used when:
+When the phone and Axiom already share the same Linux bridge, no reflection is needed even if they use different IP subnets. In **Automatic** mode the daemon notices that and leaves the relay off.
 
-- the VPN interface is selected as a Raymarine app interface for the relay;
-- UDP/5353 discovery is delivered to that interface;
-- the Axiom subnet is routed across the tunnel;
-- the firewall permits the MFD's RTSP/control ports in both directions.
+When they are on different interfaces/VLANs, the built-in relay forwards only the Raymarine-relevant discovery and learned follow-up names.
 
-For remote use, latency and tunnel MTU obviously matter more than they do on the local boat Wi-Fi, especially for the RTSP stream.
+### Existing Avahi / mDNS
 
-## mDNS and DNS-SD
+A process listening on UDP/5353 does not automatically mean a reflector is active. The WebUI distinguishes between:
 
-Raymarine discovery here uses **mDNS on UDP/5353**, not ordinary DNS on port 53.
-
-```text
-IPv4 multicast: 224.0.0.251
-UDP port:        5353
-```
-
-DNS-SD uses familiar DNS record types such as `PTR`, `SRV`, `TXT`, `A` and `AAAA`, but exchanges them over that multicast channel.
-
-Ordinary RutOS DNS on UDP/TCP `53` remains normal internet name resolution and is untouched by the emulator.
-
-After discovery, the app switches to ordinary unicast IP connections to the Axiom.
-
-## Existing mDNS / Avahi handling
-
-Something listening on UDP/5353 does not automatically mean that a reflector already exists.
-
-The package distinguishes between:
-
-- a process listening on UDP/5353;
-- `avahi-daemon` running as a normal mDNS responder;
+- a 5353 listener;
+- `avahi-daemon`;
 - Avahi with `enable-reflector=yes`;
 - `umdns`;
-- an unknown 5353 listener.
+- an unknown listener.
 
-The WebUI shows what it finds, including the process/socket information.
+In **Automatic** mode an existing Avahi reflector wins and the built-in reflector stays off, avoiding duplicate reflection loops. A normal Avahi responder or `umdns` is only reported; it is not assumed to be a reflector.
 
-### Automatic
+## Logging
 
-`Automatic` is the normal mode.
-
-- Same Axiom/app interface: no relay is needed.
-- Different interfaces and no reflector: the built-in Raymarine relay runs.
-- Avahi reflector already active: the built-in reflector stays off to avoid duplicate reflection loops.
-- Avahi without reflection, `umdns` or another reusable 5353 listener: reported, but not automatically treated as a reflector.
-
-The daemon uses reusable multicast sockets so it can normally coexist with other mDNS responders.
-
-### Force
-
-`Force built-in relay` ignores the Avahi-reflector safeguard and is intended for testing or unusual configurations.
-
-### Disabled
-
-`Disabled` turns off cross-interface discovery reflection while leaving YachtSense Link emulation available.
-
-## Logging and diagnostics
-
-The service keeps the useful network events visible instead of making mDNS a black box.
-
-Normal **Info** logging includes messages such as:
+The service keeps discovery visible in the logs. Typical Info messages look like:
 
 ```text
 YachtSense advertisement active interface=br-raynet address=198.18.0.1
@@ -373,193 +109,146 @@ Axiom remote-control service detected address=198.18.0.23 port=50000
 Avahi reflector detected; Automatic mode will not start a second reflector
 ```
 
-Repeated browse messages are rate-limited.
+Debug mode adds packet direction, packet size, learned service/host names, YachtSense replies and HTTP liveness requests.
 
-**Debug** logging adds packet direction, packet size, learned follow-up names, YachtSense query replies and HTTP liveness requests.
+## Networking example
 
-The VuCI status page shows:
-
-- YachtSense advertisement state;
-- built-in relay active/inactive and the reason;
-- Axiom / RayNet interface;
-- app-side interface(s);
-- last detected Axiom/MFD and IP;
-- last MFD service and port;
-- last Raymarine app/client source IP;
-- last requested service;
-- UDP/5353 listeners;
-- Avahi and `umdns` state;
-- recent service log lines.
-
-## Technical background
-
-The protocol behaviour was derived from the current Raymarine components rather than guessed from generic router behaviour.
-
-### Axiom / LightHouse
-
-Analysis of the Axiom ARMv7 LightHouse libraries shows a YachtSense-specific discovery path. LightHouse browses `_http._tcp`, reads the DNS-SD TXT `id` and checks the product identifier before the serial suffix.
-
-For YachtSense Link that identifier is:
+A common setup is:
 
 ```text
-E70640
+RUTX br-lan:      192.168.40.1/24
+RUTX RayNet side: 198.18.0.1/21
+Phone:            192.168.40.50/24
+Axiom:            198.18.0.23/21
 ```
 
-The YachtSense Link firmware itself publishes:
+The phone discovers the MFD through mDNS relay and then sends normal unicast traffic to `198.18.0.23`. The RUTX routes that traffic to RayNet.
 
-```text
-hostname: yachtsense-main
-service:  yachtsense-main Settings._http._tcp
-TXT id:   E70640 <serial>
-model:    Raymarine YachtSense Link
-```
+If both subnets live on the same bridge, mDNS is already visible directly at layer 2 and the relay is unnecessary.
 
-A separate LightHouse component checks the candidate over TCP `7777`.
+## RutOS WebUI
 
-That is why a normal DHCP/default-gateway router is not equivalent to YachtSense Link, and why emulating just these network behaviours is enough to make the wired router recognisable to the Axiom.
-
-### Raymarine mobile app
-
-Raymarine Android 2.3.16 uses Android `NsdManager` directly. Its discovery code browses `_http._tcp`, `_raydb._tcp`, `_rtsp._tcp`, `_rym_rrc._tcp` and service enumeration.
-
-The app classifies an onboard `_http._tcp` service as YachtSense Link when the service name contains `yachtsense-main` (and also accepts the older development name `imx8mmevk`).
-
-After finding the router, it still discovers the Axiom directly. Screen mirroring therefore remains a direct phone-to-MFD RTSP/control connection, which is exactly why exposing the relevant discovery across your own networks works.
-
-## Compatibility
-
-Version **1.0.0** targets **Teltonika RUTX routers running RutOS 7**.
-
-| Item | Support |
-|---|---|
-| Operating system | RutOS 7.x |
-| Package architecture | `arm_cortex-a7_neon-vfpv4` / ARMv7 |
-| Primary target | RUTX14 |
-| RUTX models using this platform | RUTX08, RUTX09, RUTX10, RUTX11, RUTX12, RUTX14, RUTX50, RUTXR1 |
-
-The package uses normal RutOS 7 components: UCI, `procd`, VuCI, `rpcd` ACLs and the RutOS Lua API layer.
-
-## Installation
-
-### RutOS Package Manager WebUI
-
-**System → Package Manager → Upload** expects a Teltonika Package Manager `.tar.gz`, not a loose `.ipk`. Offline packages are also tied to the exact RutOS firmware version installed on the router. Build the matching upload bundle with:
-
-```sh
-RUTOS_FIRMWARE=RUTX_R_00.07.24.2 make package-manager
-```
-
-Use the exact value returned by `cat /etc/version` on the target router. The generated file is named like:
-
-```text
-yachtsense-link-emulator_1.0.0-1_RUTX_00.07.24.2.tar.gz
-```
-
-Upload that `.tar.gz` in Package Manager. Because this project is built outside Teltonika's package repository it is not signed by a Teltonika repository key, so RutOS can show it as an unverified custom package before installation.
-
-### SSH / opkg
-
-For direct installation over SSH, use the generated RUTX IPK:
-
-```sh
-scp tlt_custom_pkg_yachtsense-link-emulator_1.0.0-1_arm_cortex-a7_neon-vfpv4.ipk root@192.168.1.1:/tmp/
-ssh root@192.168.1.1
-opkg install /tmp/tlt_custom_pkg_yachtsense-link-emulator_1.0.0-1_arm_cortex-a7_neon-vfpv4.ipk
-```
-
-Then open:
+After installation open:
 
 ```text
 Services → YachtSense Link Emulator
 ```
 
-A clean installation starts disabled so the Axiom and app interfaces can be selected before the service is enabled.
+The page provides the Axiom/RayNet interface, one or more app-side interfaces, YachtSense identity settings, optional `198.18.0.1/21` address management, relay mode, Info/Debug logging, 5353/Avahi/umdns diagnostics, last detected Axiom and last app/client query, plus Start/Stop/Restart controls.
 
-## RutOS WebUI
+A clean install starts disabled so the correct interfaces can be selected first.
 
-The VuCI page contains:
+## Installation
 
-- master enable/disable;
-- YachtSense mDNS enable/disable;
-- HTTP liveness service enable/disable;
-- Axiom / RayNet interface;
-- one or more Raymarine app interfaces;
-- `Automatic`, `Force` or `Disabled` relay mode;
-- optional `198.18.0.1/21` address management;
-- YachtSense serial/version/hostname/service settings;
-- Info/Debug logging;
-- UDP/5353, Avahi and `umdns` diagnostics;
-- detected Axiom and remote-client activity;
-- Start, Stop, Restart and Refresh controls.
+There are deliberately two packaging layers.
 
-## Configuration
+### 1. Generic RUTX IPK
 
-UCI configuration:
+The actual software is built once as:
+
+```text
+tlt_custom_pkg_yachtsense-link-emulator_1.0.0-1_arm_cortex-a7_neon-vfpv4.ipk
+```
+
+That IPK is **not tied to a RutOS patch release**. It is the same payload whether the router runs 7.24.1 or 7.24.2.
+
+Install it directly over SSH with:
+
+```sh
+opkg install /tmp/tlt_custom_pkg_yachtsense-link-emulator_1.0.0-1_arm_cortex-a7_neon-vfpv4.ipk
+```
+
+### 2. Package Manager WebUI wrappers
+
+`System → Package Manager → Upload` expects Teltonika's `.tar.gz` package container rather than a loose IPK. RutOS also checks the `Firmware:` value in that wrapper against the running firmware release.
+
+The wrapper is therefore firmware-specific, but **the IPK inside it is not**. Only the tiny `main` metadata file differs.
+
+Current RUTX14 releases, checked 2026-08-23:
+
+| Channel | RutOS | Release date | WebUI bundle |
+|---|---|---|---|
+| Stable | `RUTX_R_00.07.24.1` | 2026-07-20 | `yachtsense-link-emulator_1.0.0-1_RUTX_00.07.24.1.tar.gz` |
+| Latest | `RUTX_R_00.07.24.2` | 2026-08-13 | `yachtsense-link-emulator_1.0.0-1_RUTX_00.07.24.2.tar.gz` |
+
+Teltonika's current RUTX14 firmware list is here: https://wiki.teltonika-networks.com/view/RUTX14_Firmware_Downloads
+
+Both wrapper archives contain the **same byte-for-byte generic IPK**. CI verifies that explicitly.
+
+Because these packages are built outside Teltonika's repository they do not carry a Teltonika digital signature. RutOS can therefore show the verification screen as **Unauthorized**; Teltonika's Package Manager documentation explicitly allows proceeding with an unsigned uploaded package after that warning.
+
+For another RutOS release, build only a new wrapper:
+
+```sh
+RUTOS_FIRMWARE=RUTX_R_00.07.24.2 make package-manager
+```
+
+To build the current Stable + Latest pair in one go:
+
+```sh
+make package-manager-current
+```
+
+## Build
+
+Requirements are Go 1.22+, Bash and standard Unix packaging tools.
+
+```sh
+make check
+make package
+make package-manager-current
+make source
+```
+
+`make check` runs the Go tests and syntax checks, builds the generic RUTX IPK, builds both current Package Manager wrappers and verifies that the IPK embedded in Stable and Latest is byte-identical.
+
+Generated files are placed in `dist/`.
+
+## Default configuration
+
+```text
+Service:                  disabled
+YachtSense mDNS:          enabled
+HTTP health:              enabled
+Axiom interface:          br-lan
+Raymarine app interface:  br-lan
+Relay mode:               auto
+Managed address:          198.18.0.1/21
+Serial:                   AF002A4
+Product ID:               E70640
+Version:                  V142.242.530
+Hostname:                 yachtsense-main
+Service instance:         yachtsense-main Settings
+Health port:              7777
+mDNS TTL:                 120
+Log level:                info
+```
+
+UCI configuration lives in:
 
 ```text
 /etc/config/yachtsense_link_emulator
 ```
 
-Defaults:
-
-```text
-Service:                 disabled
-YachtSense mDNS:         enabled
-HTTP health:             enabled
-Axiom interface:         br-lan
-Raymarine app interface: br-lan
-Relay mode:              auto
-Managed address:         198.18.0.1/21
-Serial:                  AF002A4
-Product ID:              E70640
-Version:                 V142.242.530
-Hostname:                yachtsense-main
-Service instance:        yachtsense-main Settings
-Health port:             7777
-mDNS TTL:                120
-Log level:               info
-```
-
-Service commands:
+Useful commands:
 
 ```sh
 /etc/init.d/yachtsense-link-emulator status
-/etc/init.d/yachtsense-link-emulator start
 /etc/init.d/yachtsense-link-emulator restart
-/etc/init.d/yachtsense-link-emulator stop
 logread -e yachtsense-link-emulator
-```
-
-Useful diagnostics:
-
-```sh
 ss -lunp | grep ':5353'
-pidof avahi-daemon
-pidof umdns
-cat /var/run/yachtsense-link-emulator.runtime
 ```
 
-## Build
+## Technical background
 
-Requirements: Go 1.22+, Bash and the usual Unix packaging tools.
+The implementation is based on protocol behaviour observed in current Raymarine components:
 
-```sh
-make check
-make package
-make source
-```
+- LightHouse recognises YachtSense through `_http._tcp` and the `E70640` product ID, then performs a TCP/7777 liveness check.
+- YachtSense Link publishes the `yachtsense-main` service identity.
+- Raymarine Android 2.3.16 uses Android `NsdManager` for `_http`, `_raydb`, `_rtsp`, `_rym_rrc` and service enumeration.
+- The app recognises `yachtsense-main` as YachtSense Link, but still connects directly to the MFD for screen view/control.
 
-`make check` runs the Go tests and static checks, validates the RutOS descriptors/WebUI and builds the actual ARMv7 IPK.
-
-Main package files:
-
-| Path | Purpose |
-|---|---|
-| `/usr/sbin/yachtsense-link-emulator` | Static ARMv7 mDNS/HTTP/relay daemon |
-| `/etc/config/yachtsense_link_emulator` | UCI configuration |
-| `/etc/init.d/yachtsense-link-emulator` | `procd` service and reflector detection |
-| `/usr/lib/lua/api/services/yachtsense_link_emulator.lua` | VuCI API and diagnostics |
-| `/www/views/services/YachtSenseLinkEmulator.js` | RutOS management page |
+That separation is what makes the setup useful: the RUTX only has to reproduce YachtSense discovery and carry the relevant network traffic; the Axiom and Raymarine app continue speaking their normal protocols directly.
 
 ## License
 
