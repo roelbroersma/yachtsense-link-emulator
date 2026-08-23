@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.7] - 2026-08-23
+
+- Resolve the daemon and init-script paths from RutOS opkg `dest root` instead of assuming `/usr/sbin` and `/etc/init.d`.
+- Support the normal RutOS custom-package layout under `/usr/local`, including when storage expansion changes the physical backing storage.
+- Make the init script execute the daemon from the resolved package root.
+- Create absolute `/etc/rc.d` autostart links to the package init script so boot-time startup also works from `/usr/local`.
+- Add dedicated v1.0.7 save/control API routes and a cache-busted VuCI entry point.
+- Retain all v1.0.6 fixes for `set_list()`, managed RayNet address ownership and stable-PID verification.
+
 ## [1.0.6] - 2026-08-23
 
 - Fix `Save & apply` on RutOS by using the supported UCI `cursor:set_list()` method instead of the unavailable `cursor:add_list()` method.
