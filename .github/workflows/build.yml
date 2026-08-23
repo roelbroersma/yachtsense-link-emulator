@@ -48,22 +48,17 @@ jobs:
             dist/*.tar.gz
           retention-days: 14
 
-      # Normal releases are tag driven. The single release-v1.0.0 PR is also
-      # allowed to refresh the first release with the corrected RutOS artifacts.
+      # Semantic version tags publish the IPK, current RutOS WebUI wrappers,
+      # source archive and checksums. Re-running a tag refreshes its assets.
       - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'pull_request' && github.head_ref == 'release-v1.0.0')
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            tag="$GITHUB_REF_NAME"
-          else
-            tag="v1.0.0"
-          fi
-
-          notes=$'YachtSense Link Emulator for Teltonika RUTX / RutOS 7.\n\nDownloads:\n- Generic RUTX IPK: firmware-independent, for SSH/opkg.\n- RutOS 7.24.1 WebUI bundle: current Stable firmware.\n- RutOS 7.24.2 WebUI bundle: current Latest firmware.\n\nThe two WebUI bundles contain the same generic IPK; only the Teltonika Package Manager Firmware metadata differs.'
+          tag="$GITHUB_REF_NAME"
+          notes=$'YachtSense Link Emulator for Teltonika RUTX / RutOS 7.\n\nDownloads:\n- Generic RUTX IPK: firmware-independent, for SSH/opkg.\n- Current Stable RutOS WebUI bundle.\n- Current Latest RutOS WebUI bundle.\n\nThe WebUI bundles contain the same generic IPK; only the Teltonika Package Manager Firmware metadata differs.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" \
