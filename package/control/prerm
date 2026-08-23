@@ -1,12 +1,10 @@
 #!/bin/sh
 
-# Stop the daemon before opkg removes its init script and executable.
+# This file is installed as prerm-pkg and sourced by RutOS default_prerm.
+# RutOS stops/disables the init script itself; this hook only removes network
+# state that was created and tracked by this package.
 [ -n "${IPKG_INSTROOT:-}" ] && exit 0
-/etc/init.d/yachtsense-link-emulator stop >/dev/null 2>&1 || true
-/etc/init.d/yachtsense-link-emulator disable >/dev/null 2>&1 || true
 
-# Package removal always cleans an address recorded as package-managed, even if
-# the normal "remove on stop" preference was disabled by the user.
 STATE_FILE='/var/run/yachtsense-link-emulator.managed-ip'
 if [ -r "$STATE_FILE" ]; then
 	read -r managed_interface managed_address < "$STATE_FILE"
