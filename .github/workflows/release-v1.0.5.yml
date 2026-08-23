@@ -1,0 +1,58 @@
+name: Publish v1.0.5 release
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/release-v1.0.5.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache: true
+
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq lua5.1
+
+      - name: Validate new Lua and VuCI files
+        run: |
+          luac -p package/root/usr/lib/lua/api/services/yachtsense_link_emulator_save_v105.lua
+          luac -p package/root/usr/lib/lua/api/services/yachtsense_link_emulator_control_v105.lua
+          node --check package/root/www/views/services/YachtSenseLinkEmulatorV105.js
+
+      - name: Validate and build RutOS packages
+        run: make check
+
+      - name: Build source archive
+        run: make source
+
+      - name: Publish v1.0.5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v1.0.5
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.ipk dist/*.sha256 dist/*.tar.gz --clobber
+          else
+            gh release create "$TAG" \
+              dist/*.ipk dist/*.sha256 dist/*.tar.gz \
+              --target "$GITHUB_SHA" \
+              --generate-notes \
+              --title "YachtSense Link Emulator $TAG"
+          fi
