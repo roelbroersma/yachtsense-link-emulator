@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.6] - 2026-08-23
+
+- Fix `Save & apply` on RutOS by using the supported UCI `cursor:set_list()` method instead of the unavailable `cursor:add_list()` method.
+- Preserve an existing RayNet address when `Manage RayNet IPv4 address` is disabled by relinquishing stale package ownership before restart.
+- Verify Start/Restart with a stable daemon PID across several seconds, so a procd crash/respawn loop is no longer reported as success.
+- Add dedicated v1.0.6 save/control API routes and a cache-busted VuCI entry point.
+- Keep GitHub releases minimal: only the WebUI-uploadable RutOS 7.24.1 and 7.24.2 wrapper packages are published.
+
 ## [1.0.5] - 2026-08-23
 
 - Make `Save & apply` schema-proof by transporting the complete form as one JSON string instead of separate FunctionService boolean/list fields.
