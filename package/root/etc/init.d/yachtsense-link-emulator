@@ -6,8 +6,7 @@ STOP=10
 USE_PROCD=1
 
 # RutOS installs custom packages below opkg's `dest root` (normally /usr/local).
-# Storage expansion may change where that tree is physically stored, but the
-# logical path remains the configured dest root.
+# Storage expansion changes the backing storage, not this logical package root.
 PACKAGE_ROOT="$(awk '$1 == "dest" && $2 == "root" { print $3; exit }' /etc/opkg.conf 2>/dev/null)"
 [ -n "$PACKAGE_ROOT" ] || PACKAGE_ROOT='/'
 PACKAGE_ROOT="${PACKAGE_ROOT%/}"
@@ -25,8 +24,33 @@ RUNTIME_STATE_FILE='/var/run/yachtsense-link-emulator.runtime'
 LOG_TAG='yachtsense-link-emulator'
 UCI_CONFIG='yachtsense_link_emulator'
 
+# Custom-package configuration is installed below the opkg root. Fall back to
+# /etc/config for development/manual installations.
+if [ -r "${PACKAGE_PREFIX}/etc/config/${UCI_CONFIG}" ]; then
+	UCI_CONFIG_DIR="${PACKAGE_PREFIX}/etc/config"
+else
+	UCI_CONFIG_DIR='/etc/config'
+fi
+
+uci_get() {
+	local option="$1"
+	local fallback="$2"
+	local value
+	value="$(uci -c "$UCI_CONFIG_DIR" -q get "${UCI_CONFIG}.main.${option}" 2>/dev/null)"
+	[ -n "$value" ] && printf '%s' "$value" || printf '%s' "$fallback"
+}
+
+uci_bool() {
+	local value
+	value="$(uci_get "$1" "$2")"
+	case "$value" in
+		1|on|true|yes|enabled) printf '1' ;;
+		*) printf '0' ;;
+	esac
+}
+
 # rc.common's default enable action assumes /etc/init.d. Custom packages live
-# below /usr/local on current RutOS, so create absolute rc.d links to this script.
+# below /usr/local, so create absolute boot links to this init script.
 enable() {
 	mkdir -p /etc/rc.d
 	[ -n "$START" ] && ln -sf "$SELF" "/etc/rc.d/S${START}yachtsense-link-emulator"
@@ -39,51 +63,35 @@ disable() {
 	return 0
 }
 
-# Append one UCI list item to the comma-separated environment value consumed by
-# the dependency-free Go daemon.
-append_remote_interface() {
-	local value="$1"
-	[ -n "$value" ] || return 0
-	if [ -n "$remote_interfaces" ]; then
-		remote_interfaces="${remote_interfaces},${value}"
-	else
-		remote_interfaces="$value"
-	fi
-}
-
-# Load the single named UCI section and apply clean-install defaults.
+# Load settings directly with the native UCI CLI so the init script reads the
+# exact same package-root configuration as the VuCI API.
 load_settings() {
-	config_load "$UCI_CONFIG"
-	config_get_bool enabled main enabled 0
-	config_get_bool mdns_enabled main mdns_enabled 1
-	config_get_bool web_enabled main web_enabled 1
-	config_get axiom_interface main axiom_interface 'br-lan'
-	remote_interfaces=''
-	config_list_foreach main remote_interface append_remote_interface
-	[ -n "$remote_interfaces" ] || remote_interfaces='br-lan'
-	config_get relay_mode main relay_mode 'auto'
-	config_get_bool manage_ip main manage_ip 1
-	config_get ipaddr main ipaddr '198.18.0.1'
-	config_get prefix main prefix '21'
-	config_get_bool remove_ip_on_stop main remove_ip_on_stop 1
-	config_get serial main serial 'AF002A4'
-	config_get version main version 'V142.242.530'
-	config_get hostname main hostname 'yachtsense-main'
-	config_get instance main instance 'yachtsense-main Settings'
-	config_get ttl main ttl '120'
-	config_get health_port main health_port '7777'
-	config_get log_level main log_level 'info'
+	enabled="$(uci_bool enabled 0)"
+	mdns_enabled="$(uci_bool mdns_enabled 1)"
+	web_enabled="$(uci_bool web_enabled 1)"
+	axiom_interface="$(uci_get axiom_interface 'br-lan')"
+	remote_interfaces="$(uci_get remote_interface 'br-lan')"
+	remote_interfaces="$(printf '%s' "$remote_interfaces" | tr ' ' ',')"
+	relay_mode="$(uci_get relay_mode 'auto')"
+	manage_ip="$(uci_bool manage_ip 1)"
+	ipaddr="$(uci_get ipaddr '198.18.0.1')"
+	prefix="$(uci_get prefix '21')"
+	remove_ip_on_stop="$(uci_bool remove_ip_on_stop 1)"
+	serial="$(uci_get serial 'AF002A4')"
+	version="$(uci_get version 'V142.242.530')"
+	hostname="$(uci_get hostname 'yachtsense-main')"
+	instance="$(uci_get instance 'yachtsense-main Settings')"
+	ttl="$(uci_get ttl '120')"
+	health_port="$(uci_get health_port '7777')"
+	log_level="$(uci_get log_level 'info')"
 }
 
-# Return success when an exact IPv4 address/prefix exists on a Linux device.
 address_present() {
 	local device="$1"
 	local address="$2"
 	ip -o -4 addr show dev "$device" 2>/dev/null | grep -Fq "inet $address "
 }
 
-# Detect an active Avahi reflector. Merely finding avahi-daemon on UDP/5353 is
-# not enough: normal Avahi service publication is compatible with our daemon.
 avahi_reflector_enabled() {
 	pidof avahi-daemon >/dev/null 2>&1 || return 1
 	for file in /etc/avahi/avahi-daemon.conf /etc/avahi/avahi-daemon.conf.d/*.conf; do
@@ -95,8 +103,6 @@ avahi_reflector_enabled() {
 	return 1
 }
 
-# Return one concise line showing any current UDP/5353 listener. This is only a
-# diagnostic: a listener does not automatically mean a reflector is running.
 mdns_listener_summary() {
 	if command -v ss >/dev/null 2>&1; then
 		ss -lunp 2>/dev/null | grep -E '(:5353|\.5353)[[:space:]]' | head -n 1
@@ -105,8 +111,6 @@ mdns_listener_summary() {
 	fi
 }
 
-# Remove the address recorded in MANAGED_IP_FILE. The force argument is used
-# during restart so changed interface/address settings cannot leave stale state.
 remove_managed_address() {
 	local force="${1:-0}"
 	local old_interface old_address
@@ -122,8 +126,6 @@ remove_managed_address() {
 	rm -f "$MANAGED_IP_FILE"
 }
 
-# Add the configured RayNet address only when management is enabled. Existing
-# user-owned addresses are never recorded and therefore never removed by us.
 add_managed_address() {
 	local address="${ipaddr}/${prefix}"
 
@@ -147,8 +149,6 @@ add_managed_address() {
 	logger -t "$LOG_TAG" "Added managed address $address to $axiom_interface"
 }
 
-# Start the native responder/relay under procd and export UCI values as an
-# explicit environment contract. No Avahi package is required by the daemon.
 start_service() {
 	load_settings
 
@@ -165,8 +165,6 @@ start_service() {
 		return 1
 	}
 
-	# A restart always clears a previously package-managed address before the
-	# current Axiom interface/address is applied.
 	remove_managed_address 1
 	add_managed_address || return 1
 
@@ -208,30 +206,25 @@ start_service() {
 		YSL_REFLECTOR_REASON="$reflector_reason" \
 		YSL_LOG_LEVEL="$log_level" \
 		YSL_STATE_FILE="$RUNTIME_STATE_FILE"
-
-	# Respawn after unexpected exits while avoiding a tight crash loop.
 	procd_set_param respawn 5 10 0
 	procd_set_param stdout 1
 	procd_set_param stderr 1
 	procd_close_instance
 }
 
-# procd terminates the native process; package-managed network state is the only
-# state that requires explicit cleanup here.
 stop_service() {
 	load_settings
 	remove_managed_address 0
 	logger -t "$LOG_TAG" "Service stopped"
 }
 
-# A full restart is required because multicast membership and interface binding
-# cannot be safely changed in-place.
 reload_service() {
 	stop
 	start
 }
 
-# Reload whenever this UCI package is committed outside the VuCI page.
+# The package uses its own UCI config directory, so VuCI explicitly restarts the
+# service after a successful commit instead of relying on a global UCI trigger.
 service_triggers() {
-	procd_add_reload_trigger "$UCI_CONFIG"
+	return 0
 }
