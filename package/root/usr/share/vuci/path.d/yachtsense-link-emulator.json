@@ -4,5 +4,8 @@
   },
   {
     "/yachtsense-link-emulator-config/{service_group}/{?sid}": "services/yachtsense_link_emulator_config"
+  },
+  {
+    "/yachtsense-link-emulator-save/{service_group}/{?sid}": "services/yachtsense_link_emulator_save"
   }
 ]
