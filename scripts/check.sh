@@ -45,7 +45,7 @@ if grep -RniE 'migrat(e|ion)|migrated_from|/usr/local/usr/share' package/control
 fi
 
 # Build and inspect the single firmware-independent RUTX payload.
-./scripts/build-ipk.sh
+bash scripts/build-ipk.sh
 IPK="$(find dist -maxdepth 1 -name 'tlt_custom_pkg_yachtsense-link-emulator_*_arm_cortex-a7_neon-vfpv4.ipk' | sort | tail -n 1)"
 test -n "$IPK"
 
@@ -69,7 +69,7 @@ fi
 
 # Build the two WebUI wrappers currently published by Teltonika for RUTX:
 # Stable 7.24.1 and Latest 7.24.2. Only main/Firmware may differ.
-./scripts/build-current-pm-bundles.sh
+bash scripts/build-current-pm-bundles.sh
 STABLE="dist/yachtsense-link-emulator_1.0.0-1_RUTX_00.07.24.1.tar.gz"
 LATEST="dist/yachtsense-link-emulator_1.0.0-1_RUTX_00.07.24.2.tar.gz"
 for bundle in "$STABLE" "$LATEST"; do
