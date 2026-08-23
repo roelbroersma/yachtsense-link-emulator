@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.11] - 2026-08-23
+
+- Make in-place RutOS upgrades safe by detecting `PKG_UPGRADE=1` in package lifecycle hooks.
+- Skip package-specific runtime/network cleanup during upgrades; the new package takes over the existing state after RutOS stops the old service.
+- Skip rpcd/uhttpd/VuCI cleanup in the old package `postrm` during upgrades; the new package `postinst` performs the required reloads after replacement is complete.
+- Keep full cleanup behavior for an actual package removal.
+
 ## [1.0.10] - 2026-08-23
 
 - Detect the YachtSense UCI configuration directory from the RutOS custom-package root and pass it explicitly to every `uci` command.
