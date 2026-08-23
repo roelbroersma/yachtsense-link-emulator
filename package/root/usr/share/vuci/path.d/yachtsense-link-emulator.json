@@ -1,35 +1,11 @@
 [
   {
-    "/yachtsense-link-emulator/{service_group}/{?sid}": "services/yachtsense_link_emulator"
+    "/yachtsense-link-emulator-status-v109/{service_group}/{?sid}": "services/yachtsense_link_emulator_status_v109"
   },
   {
-    "/yachtsense-link-emulator-config/{service_group}/{?sid}": "services/yachtsense_link_emulator_config"
+    "/yachtsense-link-emulator-save-v109/{service_group}/{?sid}": "services/yachtsense_link_emulator_save_v109"
   },
   {
-    "/yachtsense-link-emulator-save/{service_group}/{?sid}": "services/yachtsense_link_emulator_save"
-  },
-  {
-    "/yachtsense-link-emulator-save-v105/{service_group}/{?sid}": "services/yachtsense_link_emulator_save_v105"
-  },
-  {
-    "/yachtsense-link-emulator-control-v105/{service_group}/{?sid}": "services/yachtsense_link_emulator_control_v105"
-  },
-  {
-    "/yachtsense-link-emulator-save-v106/{service_group}/{?sid}": "services/yachtsense_link_emulator_save_v106"
-  },
-  {
-    "/yachtsense-link-emulator-control-v106/{service_group}/{?sid}": "services/yachtsense_link_emulator_control_v106"
-  },
-  {
-    "/yachtsense-link-emulator-save-v107/{service_group}/{?sid}": "services/yachtsense_link_emulator_save_v107"
-  },
-  {
-    "/yachtsense-link-emulator-control-v107/{service_group}/{?sid}": "services/yachtsense_link_emulator_control_v107"
-  },
-  {
-    "/yachtsense-link-emulator-save-v108/{service_group}/{?sid}": "services/yachtsense_link_emulator_save_v108"
-  },
-  {
-    "/yachtsense-link-emulator-control-v108/{service_group}/{?sid}": "services/yachtsense_link_emulator_control_v108"
+    "/yachtsense-link-emulator-control-v109/{service_group}/{?sid}": "services/yachtsense_link_emulator_control_v109"
   }
 ]
