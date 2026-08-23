@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.10] - 2026-08-23
+
+- Detect the YachtSense UCI configuration directory from the RutOS custom-package root and pass it explicitly to every `uci` command.
+- Read and write `/usr/local/etc/config/yachtsense_link_emulator` on normal RutOS custom-package installations, with `/etc/config` as fallback.
+- Make the init script read the same package-root UCI file as the VuCI status/save/control APIs.
+- Keep all configuration operations on the native RutOS `uci` CLI; no firmware-dependent Lua UCI list methods are used.
+- Keep the single-snapshot interface status, `br-lan` address stabilization, checkbox focus fix, `/usr/local` executable paths and protected Start/Restart error handling.
+- Add dedicated v1.0.10 APIs and VuCI entry point to avoid stale cached v1.0.7-v1.0.9 code.
+
 ## [1.0.9] - 2026-08-23
 
 - Move all configuration writes to the native RutOS `uci` CLI, avoiding firmware-specific Lua `uci` cursor methods completely.
