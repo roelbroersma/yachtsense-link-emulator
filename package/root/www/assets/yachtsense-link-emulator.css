@@ -1,0 +1,413 @@
+/* YachtSense Link Emulator layout for RutOS VuCI.
+ * External CSS is required because RutOS CSP blocks arbitrary inline styles.
+ */
+
+.ysle-page {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 4px 0 24px;
+  box-sizing: border-box;
+}
+
+.ysle-page *,
+.ysle-page *::before,
+.ysle-page *::after {
+  box-sizing: border-box;
+}
+
+.ysle-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 2px 0 18px;
+}
+
+.ysle-header h2 {
+  margin: 0 0 5px;
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.ysle-header p {
+  max-width: 760px;
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ysle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.ysle-card {
+  min-width: 0;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.ysle-card.full {
+  grid-column: 1 / -1;
+}
+
+.ysle-card h3 {
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eaecf0;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.ysle-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+
+.ysle-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ysle-field.full {
+  grid-column: 1 / -1;
+}
+
+.ysle-field label {
+  color: #344054;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.ysle-field small,
+.ysle-check small,
+.ysle-switch span span {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ysle-field input,
+.ysle-field select {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 10px;
+  color: #101828;
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 5px;
+  outline: none;
+  font: inherit;
+  font-size: 13px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ysle-field input:focus,
+.ysle-field select:focus {
+  border-color: #2f6fed;
+  box-shadow: 0 0 0 2px rgba(47, 111, 237, 0.12);
+}
+
+.ysle-switch {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin: 0;
+  padding: 9px 0;
+  border-bottom: 1px solid #f2f4f7;
+  cursor: pointer;
+}
+
+.ysle-switch:last-child {
+  border-bottom: 0;
+}
+
+.ysle-switch input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: #0b4ec7;
+}
+
+.ysle-switch b {
+  display: block;
+  margin-bottom: 2px;
+  color: #344054;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.ysle-checkgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ysle-check {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
+  padding: 10px 11px;
+  background: #fcfcfd;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ysle-check:hover {
+  border-color: #b8c5dc;
+  background: #f8faff;
+}
+
+.ysle-check input {
+  width: 15px;
+  height: 15px;
+  margin: 2px 0 0;
+  accent-color: #0b4ec7;
+}
+
+.ysle-check b {
+  display: block;
+  overflow: hidden;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ysle-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.ysle-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 25px;
+  padding: 4px 9px;
+  color: #475467;
+  background: #f2f4f7;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.ysle-badge.ok {
+  color: #067647;
+  background: #ecfdf3;
+  border-color: #abefc6;
+}
+
+.ysle-badge.bad {
+  color: #b42318;
+  background: #fef3f2;
+  border-color: #fecdca;
+}
+
+.ysle-badge.warn {
+  color: #b54708;
+  background: #fffaeb;
+  border-color: #fedf89;
+}
+
+.ysle-badge.neutral {
+  color: #475467;
+  background: #f2f4f7;
+  border-color: #e4e7ec;
+}
+
+.ysle-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+.ysle-details {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 8px 14px;
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ysle-details dt {
+  color: #667085;
+}
+
+.ysle-details dd {
+  min-width: 0;
+  margin: 0;
+  color: #344054;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.ysle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 0;
+}
+
+.ysle-btn {
+  min-height: 36px;
+  padding: 7px 14px;
+  color: #344054;
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ysle-btn:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #98a2b3;
+}
+
+.ysle-btn.primary {
+  color: #fff;
+  background: #0b4ec7;
+  border-color: #0b4ec7;
+}
+
+.ysle-btn.primary:hover:not(:disabled) {
+  background: #083fa2;
+  border-color: #083fa2;
+}
+
+.ysle-btn.danger {
+  color: #b42318;
+  background: #fff;
+  border-color: #fda29b;
+}
+
+.ysle-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ysle-note,
+.ysle-info {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ysle-note {
+  color: #93370d;
+  background: #fffaeb;
+  border: 1px solid #fedf89;
+}
+
+.ysle-info {
+  color: #175cd3;
+  background: #eff8ff;
+  border: 1px solid #b2ddff;
+}
+
+.ysle-muted {
+  margin: 10px 0 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ysle-log,
+.ysle-listeners {
+  width: 100%;
+  margin: 0;
+  overflow: auto;
+  color: #e4e7ec;
+  background: #101828;
+  border: 1px solid #1d2939;
+  border-radius: 6px;
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ysle-listeners {
+  min-height: 56px;
+  max-height: 150px;
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.ysle-log {
+  min-height: 220px;
+  max-height: 440px;
+  padding: 12px 14px;
+}
+
+@media (max-width: 1050px) {
+  .ysle-grid,
+  .ysle-form,
+  .ysle-checkgrid {
+    grid-template-columns: 1fr;
+  }
+
+  .ysle-card.full,
+  .ysle-field.full {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .ysle-page {
+    padding-bottom: 16px;
+  }
+
+  .ysle-header {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .ysle-header .ysle-btn {
+    justify-self: start;
+  }
+
+  .ysle-card {
+    padding: 15px;
+  }
+
+  .ysle-details {
+    grid-template-columns: 1fr;
+    gap: 2px 0;
+  }
+
+  .ysle-details dd {
+    margin-bottom: 8px;
+  }
+}
