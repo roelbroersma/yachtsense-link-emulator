@@ -4,14 +4,16 @@
     "read": {
       "api": [
         "/yachtsense-link-emulator/*",
-        "/yachtsense-link-emulator-config/*"
+        "/yachtsense-link-emulator-config/*",
+        "/yachtsense-link-emulator-save/*"
       ],
       "uci": ["yachtsense_link_emulator"]
     },
     "write": {
       "api": [
         "/yachtsense-link-emulator/*",
-        "/yachtsense-link-emulator-config/*"
+        "/yachtsense-link-emulator-config/*",
+        "/yachtsense-link-emulator-save/*"
       ],
       "uci": ["yachtsense_link_emulator"]
     }
