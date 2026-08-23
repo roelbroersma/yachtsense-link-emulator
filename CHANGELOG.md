@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.3] - 2026-08-23
+
+- Fix `Save & apply` by writing `remote_interface` as a real UCI list with `add_list` instead of passing a Lua table to `cursor:set`.
+- Add a dedicated validated configuration-save endpoint that accepts normal JSON `false` boolean values and returns useful error messages.
+- Prevent overlapping five-second status requests in the VuCI page.
+- Keep the last valid IPv4 interface snapshot across up to two transient empty samples, preventing `br-lan` and other interfaces from visually jumping between a CIDR and `No IPv4 address detected`.
+- Extend package checks for the configuration endpoint, CSP-safe wrapper and external stylesheet.
+
 ## [1.0.2] - 2026-08-23
 
 - Fix the VuCI layout under RutOS Content Security Policy by moving package styling to an external same-origin stylesheet.
