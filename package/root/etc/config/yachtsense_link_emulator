@@ -2,34 +2,34 @@
 # Use Services > YachtSense Link Emulator in VuCI whenever possible.
 
 config emulator 'main'
-	# Keep a clean installation disabled until network roles have been reviewed.
+	# Keep a clean installation disabled until the detected network is reviewed.
 	option enabled '0'
 
-	# YachtSense identity and Axiom HTTP liveness check can be controlled
-	# independently from the Raymarine app discovery relay.
+	# Core YachtSense functions. The simplified UI keeps these under Advanced
+	# because a normal installation should leave both enabled.
 	option mdns_enabled '1'
 	option web_enabled '1'
 
-	# Interface connected to the Axiom / RayNet side of the installation.
+	# The VuCI page automatically detects the RayNet interface from the exact
+	# address below and stores the detected interface here when changes are saved.
 	option axiom_interface 'br-lan'
 
 	# One or more interfaces on which phones/tablets run the Raymarine app.
-	# When an entry equals axiom_interface, no reflection is needed for it.
+	# VuCI prefers br-lan automatically when it is a suitable app-side network.
 	list remote_interface 'br-lan'
 
-	# Relay modes:
-	#   auto     - relay only when networks differ and no Avahi reflector is active
-	#   force    - force the built-in relay even if another reflector is detected
-	#   disabled - never relay; direct YachtSense advertisements can still run
+	# Discovery choices:
+	#   auto     - reuse an existing Avahi reflector, otherwise built-in relay
+	#   force    - force the built-in YachtSense discovery relay
+	#   disabled - do not use the built-in relay (e.g. existing Avahi reflector)
 	option relay_mode 'auto'
 
-	# Add the RayNet-side IPv4 address automatically when the service starts.
-	option manage_ip '1'
+	# Observe the existing RayNet address by default. Only when manage_ip is
+	# explicitly enabled may this package add the address itself.
+	option manage_ip '0'
 	option ipaddr '198.18.0.1'
 	option prefix '21'
-
-	# Remove only an address that this package added itself.
-	option remove_ip_on_stop '1'
+	option remove_ip_on_stop '0'
 
 	# Identity published in DNS-SD. These defaults mirror a real YachtSense Link.
 	option serial 'AF002A4'
