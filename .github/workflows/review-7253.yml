@@ -20,18 +20,25 @@ jobs:
           sudo apt-get install -y --no-install-recommends squashfs-tools lua5.1 jq qemu-user-static
           cp /usr/bin/qemu-arm-static review-output/qemu-arm-static
           python3 - <<'PY'
-          import urllib.request, pathlib, subprocess, hashlib, struct
+          import urllib.request, pathlib, subprocess, hashlib, struct, re
           out = pathlib.Path('review-output')
           url = 'https://firmware.teltonika-networks.com/7.25.3/RUTX/RUTX_R_00.07.25.3_WEBUI.bin'
           out.joinpath('firmware-url.txt').write_text(url+'\n')
           urllib.request.urlretrieve(url, '/tmp/rutos.bin')
           data = pathlib.Path('/tmp/rutos.bin').read_bytes()
           assert hashlib.md5(data).hexdigest() == '91030df254424854f3a5d1ded46909d5'
-          offset = data.find(b'hsqs')
-          assert offset > 0
-          image = bytearray(data[offset:])
-          # Ignore vendor xattrs only in this disposable analysis copy.
-          struct.pack_into('<Q', image, 56, 0xffffffffffffffff)
+          blocks = {}
+          for match in re.finditer(b'UBI#', data):
+              offset = match.start()
+              if offset+131072 > len(data): continue
+              vid, payload = struct.unpack_from('>II', data, offset+16)
+              if vid != 2048 or payload != 4096: continue
+              if data[offset+vid:offset+vid+4] != b'UBI!': continue
+              volume, logical = struct.unpack_from('>II',data,offset+vid+8)
+              if volume == 1: blocks[logical] = data[offset+payload:offset+131072]
+          assert list(sorted(blocks)) == list(range(len(blocks)))
+          image = b''.join(blocks[x] for x in sorted(blocks))
+          assert image.startswith(b'hsqs')
           pathlib.Path('/tmp/rootfs.sqfs').write_bytes(image)
           root = out / 'firmware-root'
           r = subprocess.run(['unsquashfs','-no-xattrs','-no-progress','-d',str(root),'/tmp/rootfs.sqfs'], capture_output=True, text=True)
