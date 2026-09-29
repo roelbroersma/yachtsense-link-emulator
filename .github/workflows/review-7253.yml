@@ -1,0 +1,68 @@
+name: RutOS 7.25.3 compatibility inspection
+on:
+  push:
+    branches: ["review/rutos-7.25.3"]
+    paths: [".github/workflows/review-7253.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: Snapshot source and check baseline
+        run: |
+          mkdir -p review-output
+          git archive HEAD | gzip -n > review-output/source.tar.gz
+          go version | tee review-output/go-version.txt
+          go test -race -count=1 ./... 2>&1 | tee review-output/baseline-tests.txt
+          go vet ./...
+      - name: Inspect official firmware and package layout
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends squashfs-tools lua5.1 jq qemu-user-static
+          cp /usr/bin/lua5.1 review-output/lua5.1-linux-amd64
+          python3 - <<'PY'
+          import urllib.request, re, pathlib, subprocess, json
+          from html import unescape
+          out = pathlib.Path('review-output')
+          page = urllib.request.urlopen('https://wiki.teltonika-networks.com/view/RUTX14_Firmware_Downloads', timeout=60).read().decode()
+          links = [unescape(x) for x in re.findall(r'href="([^"]+)"', page)]
+          matches = [x for x in links if 'RUTX_R_00.07.25.3_WEBUI.bin' in x and x.startswith('https://')]
+          if not matches: raise RuntimeError('Official 7.25.3 firmware link not found')
+          url = matches[0]
+          out.joinpath('firmware-url.txt').write_text(url+'\n')
+          urllib.request.urlretrieve(url, '/tmp/rutos.bin')
+          data = pathlib.Path('/tmp/rutos.bin').read_bytes()
+          offsets = [m.start() for m in re.finditer(b'hsqs', data)]
+          root = out / 'firmware-root'
+          for offset in offsets:
+              r = subprocess.run(['unsquashfs','-no-progress','-offset',str(offset),'-d',str(root),'/tmp/rutos.bin'], capture_output=True, text=True)
+              if r.returncode == 0: break
+          else: raise RuntimeError('Could not extract firmware root; squashfs offsets='+str(offsets))
+          print('Extracted official firmware:', url)
+          subprocess.run(['find',str(root),'-maxdepth','3','-type','f'], check=True, stdout=out.joinpath('firmware-files.txt').open('w'))
+          subprocess.run(['tar','-czf',str(out/'firmware-root.tar.gz'),'-C',str(root),'.'], check=True)
+          p = urllib.request.urlopen('https://wiki.teltonika-networks.com/view/RUTX14_Package_Downloads',timeout=60).read().decode()
+          links = [unescape(x) for x in re.findall(r'href="([^"]+)"',p)]
+          matches = [x for x in links if '07.25.3' in x and ('iperf3' in x.lower() or 'igmpproxy' in x.lower()) and x.startswith('https://')]
+          if matches:
+              out.joinpath('sample-package-url.txt').write_text(matches[0]+'\n')
+              urllib.request.urlretrieve(matches[0],out/'sample-package.tar.gz')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rutos-7253-inspection
+          path: |
+            review-output/*.gz
+            review-output/*.txt
+            review-output/lua5.1-linux-amd64
+          retention-days: 7
