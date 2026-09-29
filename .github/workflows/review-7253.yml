@@ -21,26 +21,27 @@ jobs:
           cp /usr/bin/qemu-arm-static review-output/qemu-arm-static
           cp /usr/bin/lua5.1 review-output/lua5.1-linux-amd64
           python3 - <<'PY'
-          import urllib.request, re, pathlib, subprocess, hashlib
+          import urllib.request, re, pathlib, subprocess, hashlib, gzip
           out = pathlib.Path('review-output')
+          url = 'https://firmware.teltonika-networks.com/7.25.3/RUTX/Packages/iperf3.tar.gz'
+          out.joinpath('sample-package-url.txt').write_text(url+'\n')
+          urllib.request.urlretrieve(url,out/'sample-package.tar.gz')
           url = 'https://firmware.teltonika-networks.com/7.25.3/RUTX/RUTX_R_00.07.25.3_WEBUI.bin'
           out.joinpath('firmware-url.txt').write_text(url+'\n')
           urllib.request.urlretrieve(url, '/tmp/rutos.bin')
           data = pathlib.Path('/tmp/rutos.bin').read_bytes()
+          assert hashlib.md5(data).hexdigest() == '91030df254424854f3a5d1ded46909d5'
           out.joinpath('firmware-md5.txt').write_text(hashlib.md5(data).hexdigest()+'\n')
-          print('Firmware bytes:',len(data),'MD5:',hashlib.md5(data).hexdigest())
+          out.joinpath('firmware.bin.gz').write_bytes(gzip.compress(data))
           offsets = [m.start() for m in re.finditer(b'hsqs', data)]
           root = out / 'firmware-root'
           for offset in offsets:
-              r = subprocess.run(['unsquashfs','-no-progress','-offset',str(offset),'-d',str(root),'/tmp/rutos.bin'], capture_output=True, text=True)
+              r = subprocess.run(['unsquashfs','-no-xattrs','-no-progress','-offset',str(offset),'-d',str(root),'/tmp/rutos.bin'], capture_output=True, text=True)
               print(r.stdout, r.stderr)
               if root.joinpath('etc').exists(): break
           else: raise RuntimeError('Could not extract firmware root; squashfs offsets='+str(offsets))
           print('Extracted official firmware:', url)
           subprocess.run(['tar','-czf',str(out/'firmware-root.tar.gz'),'-C',str(root),'.'], check=True)
-          url = 'https://firmware.teltonika-networks.com/7.25.3/RUTX/Packages/iperf3.tar.gz'
-          out.joinpath('sample-package-url.txt').write_text(url+'\n')
-          urllib.request.urlretrieve(url,out/'sample-package.tar.gz')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
