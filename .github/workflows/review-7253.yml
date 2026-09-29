@@ -20,7 +20,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends squashfs-tools lua5.1 jq qemu-user-static
           cp /usr/bin/qemu-arm-static review-output/qemu-arm-static
           python3 - <<'PY'
-          import urllib.request, pathlib, subprocess, hashlib
+          import urllib.request, pathlib, subprocess, hashlib, struct
           out = pathlib.Path('review-output')
           url = 'https://firmware.teltonika-networks.com/7.25.3/RUTX/RUTX_R_00.07.25.3_WEBUI.bin'
           out.joinpath('firmware-url.txt').write_text(url+'\n')
@@ -29,7 +29,10 @@ jobs:
           assert hashlib.md5(data).hexdigest() == '91030df254424854f3a5d1ded46909d5'
           offset = data.find(b'hsqs')
           assert offset > 0
-          pathlib.Path('/tmp/rootfs.sqfs').write_bytes(data[offset:])
+          image = bytearray(data[offset:])
+          # Ignore vendor xattrs only in this disposable analysis copy.
+          struct.pack_into('<Q', image, 56, 0xffffffffffffffff)
+          pathlib.Path('/tmp/rootfs.sqfs').write_bytes(image)
           root = out / 'firmware-root'
           r = subprocess.run(['unsquashfs','-no-xattrs','-no-progress','-d',str(root),'/tmp/rootfs.sqfs'], capture_output=True, text=True)
           print(r.stdout, r.stderr)
