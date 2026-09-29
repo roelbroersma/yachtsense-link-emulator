@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a deterministic, firmware-specific RutOS WebUI upload package.
 
-The public upload contains only main + one IPK. RutOS 7.25 uses Yocto
+The public upload contains main, one IPK and a local Packages index. RutOS 7.25 uses Yocto
 architecture names and the standard ar IPK container. Older RutOS uses its
 legacy architecture name and gzip/tar IPK container. Hashes remain embedded
 in the required package metadata, not as separate release artifacts.
@@ -77,7 +77,7 @@ def build(firmware: str) -> Path:
     for path in sorted((ROOT/'package/root').rglob('*')):
         if path.is_file():
             name=path.relative_to(ROOT/'package/root').as_posix()
-            mode=0o755 if name.startswith('etc/init.d/') else 0o644
+            mode=0o755 if name.startswith(('etc/init.d/', 'usr/libexec/')) else 0o644
             files[name]=(path.read_bytes(),mode)
     files['usr/sbin/yachtsense-link-emulator']=(binary.read_bytes(),0o755)
     files['usr/share/doc/yachtsense-link-emulator/LICENSE']=((ROOT/'LICENSE').read_bytes(),0o644)
@@ -97,19 +97,8 @@ Depends: api-core, vuci-ui-core
 Installed-Size: {size}
 Description: YachtSense Link discovery and HTTP health with selective Raymarine mDNS relay, observed runtime status, persistent network choices and bounded native service actions.
 '''.encode()
-    postinst=b'''#!/bin/sh
-[ "${IPKG_NO_SCRIPT:-}" = "1" ] && exit 0
-[ -s "${IPKG_INSTROOT:-}/lib/functions.sh" ] || exit 0
-. "${IPKG_INSTROOT:-}/lib/functions.sh"
-default_postinst "$0" "$@"
-'''
-    prerm=b'''#!/bin/sh
-[ -s "${IPKG_INSTROOT:-}/lib/functions.sh" ] || exit 0
-. "${IPKG_INSTROOT:-}/lib/functions.sh"
-default_prerm "$0" "$@"
-'''
-    controls={'control':(control,0o644),'conffiles':(b'/etc/config/yachtsense_link_emulator\n',0o644),'postinst':(postinst,0o755),'prerm':(prerm,0o755)}
-    for name in ['postinst-pkg','prerm-pkg','postrm']:
+    controls={'control':(control,0o644),'conffiles':(b'/etc/config/yachtsense_link_emulator\n',0o644)}
+    for name in ['postinst','prerm','postinst-pkg','prerm-pkg','postrm']:
         controls[name]=((ROOT/'package/control'/name).read_bytes(),0o755)
     ctrl=archive(controls)
     ipk_name=f'{PACKAGE}_{version}-1_{arch}.ipk'
@@ -129,8 +118,15 @@ ipk_file: {ipk_name}:{checksum}
 ipk_deps:
 '''.encode()
     final=dist/f'yachtsense-link-emulator_{version}-1_RUTX_{firmware.rsplit("_",1)[1]}.tar.gz'
-    final.write_bytes(archive({'main':(main,0o644),ipk_name:(ipk,0o644)}))
-    # The standalone IPK stays in build/ for auditing; it is not a release attachment.
+    # RutOS 7.25 installs by package name from its temporary custom_packages feed.
+    # A standalone IPK works without this index; the WebUI wrapper does not.
+    upload={'main':(main,0o644),ipk_name:(ipk,0o644)}
+    if ipk_format == 'ar':
+        index=control+f'Filename: {ipk_name}\nSize: {len(ipk)}\nMD5Sum: {hashlib.md5(ipk).hexdigest()}\nSHA256sum: {hashlib.sha256(ipk).hexdigest()}\n\n'.encode()
+        upload['Packages']=(index,0o644)
+        upload['Packages.gz']=(gzip.compress(index,compresslevel=9,mtime=0),0o644)
+    final.write_bytes(archive(upload))
+    # Keep a standalone IPK for CLI diagnostics and the GitHub release.
     (work/ipk_name).write_bytes(ipk)
     print(f'Built {final} ({final.stat().st_size} bytes)')
     return final

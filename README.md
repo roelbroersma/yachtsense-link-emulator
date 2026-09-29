@@ -1,37 +1,87 @@
-# YachtSense Link Emulator 1.1.1 — RutOS 7.25.3
+# YachtSense Link Emulator
 
-This release branch restores the exact application and packaging sources of the previously supplied 1.1.1 build. It publishes that same package as a standalone IPK for diagnosing the generic WebUI installation failure. It does not contain a new runtime fix and does not claim successful installation on the target router.
+**Release 1.1.2 — Teltonika RUTX14, RutOS RUTX_R_00.07.25.3.**
 
-Target confirmed by the router's CLI:
+Upload `yachtsense-link-emulator_1.1.2-1_RUTX_00.07.25.3.tar.gz` unchanged via
+**System → Package Manager → Upload package**. Do not extract it or remove the
+previous package first. Existing settings are retained. Wait about 20 seconds,
+then sign out and back in before opening **Services → YachtSense Link Emulator**.
+The standalone `.ipk` is for CLI installation/diagnostics, not a firmware image.
+This is a third-party package, not signed or endorsed by Teltonika or Raymarine.
 
-- RUTX14 STM32; `RUTX_R_00.07.25.3`; ARMv7.
-- opkg 0.6.3 (libsolv 0.7.28).
-- Package architecture: `cortexa7hf-neon-vfpv4`.
-- Logical package root: `/usr/local`.
+## What 1.1.2 fixes
 
-The publication workflow rebuilds with Go 1.23.2 and verifies the complete IPK and WebUI-wrapper digests against the original supplied files before publishing. Only the IPK and firmware-specific WebUI upload are release assets. The existing default branch and old release tags are left unchanged.
+The release incorporates the field-tested 1.1.1-2/1.1.1-3 packaging and API fixes,
+plus the confirmed `rpcd` authorization fix. Both `publish` and narrowly scoped
+`access` permissions are necessary: publishing exposes the RPC object, while
+access allows the non-root RPC loader to locate it again when a method is called.
+These permissions now live in tracked package files instead of manual CLI edits.
 
-## Reproduce the package
+The WebUI upload includes `Packages` and `Packages.gz` because RutOS 7.25 installs
+uploaded packages through a temporary local feed. An IPK alone is not sufficient
+inside that wrapper. All package/control/index metadata agree on version and
+Yocto architecture `cortexa7hf-neon-vfpv4`.
 
-With Go 1.23.2 and Python 3.13.5:
+The authenticated Lua adapter uses a finite root-owned RPC helper. It supports
+only status, diagnostics, save, start, stop and restart; there is no arbitrary
+command execution endpoint. Configurations remain root-only. Separate bus ACLs
+permit `uhttpd` to call the helper and `rpcd` to publish and find it. The installer
+reloads bus ACLs before restarting RPC registration, reloads session permissions,
+and refreshes the web backend and menus. Browser assets have new versioned URLs.
+
+An unavailable status now shows **Unknown**, not a false **Off** or **Not running**.
+The daemon's network/discovery implementation is unchanged from 1.1.1; only its
+compiled package-version string changes. This release does not claim to solve
+Raymarine iPhone discovery across every VPN topology.
+
+## Networking
+
+Fresh installations are disabled until enabled. Automatic RayNet selection finds
+the interface already owning the configured address, normally `198.18.0.1`.
+IP address management is off by default. Explicit existing network choices are
+preserved; change a legacy manual choice to Automatic when required.
+
+The built-in daemon publishes the YachtSense identity and supplies the HTTP
+health endpoint. The built-in selective relay or an existing Avahi reflector can
+handle cross-network discovery. Avahi is not modified by this package. Axiom and
+app detections report observed traffic, not a proven remote-control session.
+
+The package does not edit firewall, DHCP, routes, IPsec or VXLAN settings. With a
+VPN, the Axiom subnet must be routed in both directions and mDNS must reach the
+selected app interface. Repeated Axiom service advertisements alone do not prove
+that the phone has received them. See `docs/rutos-7.25.3-fixes.md`.
+
+## CLI diagnostics
 
 ```sh
-python3 scripts/build.py --firmware RUTX_R_00.07.25.3
+opkg status tlt_custom_pkg_yachtsense-link-emulator
+/usr/local/usr/sbin/yachtsense-link-emulator --api diagnostics
+ubus -v list yachtsense-link-emulator
+ubus call yachtsense-link-emulator status '{}'
+api get /yachtsense-link-emulator-v1100/status
 ```
 
-The IPK is written to `build/`; the WebUI wrapper is written to `dist/`. The full test suite and original test results remain in the previously supplied `yachtsense-link-emulator_1.1.1_source-en-tests.zip`; this branch contains the sources needed to reproduce the published package, not a claim of new hardware testing.
+A successful `api` process exit is not sufficient: inspect `http_code`, `success`
+and the nested application result. The latter must report `ok: true` and no
+configuration read error.
 
-## CLI installation for diagnosis
+## Rebuild and test
 
-Run as root on the RUTX14:
+Linux, Go 1.22+, Python 3.10+, Node 22, GNU ar, Bash and LuaJIT (or texlua) are used.
+The reproducible release workflow pins Go 1.23.2 and Python 3.13.5. There are no
+external Go dependencies.
 
 ```sh
-cd /tmp || exit 1
-wget -O yachtsense-1.1.1.ipk 'https://github.com/roelbroersma/yachtsense-link-emulator/releases/download/v1.1.1/tlt_custom_pkg_yachtsense-link-emulator_1.1.1-1_cortexa7hf-neon-vfpv4.ipk' && (
-  opkg -V4 install --force-reinstall /tmp/yachtsense-1.1.1.ipk
-  rc=$?
-  printf '\nOPKG_EXIT=%s\n' "$rc"
-) 2>&1 | tee /tmp/yachtsense-install.log
+LUA_TEST=luajit bash scripts/check.sh
 ```
 
-Return the full output, especially the first dependency, signature, archive or package-script error. Do not force dependencies or architecture and do not remove the installed package first: the unchanged installation attempt is the evidence needed to diagnose the failure. Configuration and network settings are not changed by this publication process.
+This runs Go tests with the race detector, Go vet, UI logic tests, mocked Lua
+adapter/RPC tests, the ARMv7 crossbuild and checks of the actual release archives.
+Optional visual fixture checks use `python3 tests/layout_test.py` with Playwright
+and `/usr/bin/chromium`. They do not emulate a full RutOS installation.
+
+The preceding build plus the two RPC ACL repairs was confirmed on the user's
+RUTX14: RPC exit 0, HTTP 200 and current running status. The consolidated 1.1.2
+install/upgrade still requires confirmation on the router; local tests and CI
+are not represented as hardware tests. Raw user logs, MAC addresses and secrets
+are not committed to this repository.

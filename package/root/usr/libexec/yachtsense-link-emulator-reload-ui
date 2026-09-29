@@ -1,0 +1,19 @@
+#!/bin/sh
+# Apply the package's bus ACLs before rpcd registers its finite helper.
+# Do not restart networking or change the webserver's unprivileged identity.
+set -u
+PATH=/usr/local/usr/sbin:/usr/local/usr/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+killall -HUP ubusd 2>/dev/null || true
+sleep 2
+timeout 15 /etc/init.d/rpcd restart || true
+sleep 3
+timeout 5 ubus call session reload_acls || true
+killall -HUP uhttpd 2>/dev/null || true
+timeout 5 ubus send vuci.notify '{"event":"reload_routes"}' || true
+if ubus -t 3 list yachtsense-link-emulator | grep -qx yachtsense-link-emulator; then
+  logger -t yachtsense-link-emulator 'UI 1.1.2: RPC bridge registered; sign in again to refresh session permissions'
+else
+  logger -t yachtsense-link-emulator 'UI 1.1.2: RPC bridge registration failed; inspect ubus -v list yachtsense-link-emulator'
+fi
+exit 0

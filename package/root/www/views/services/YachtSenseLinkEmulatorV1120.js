@@ -1,4 +1,4 @@
-/* YachtSense Link Emulator 1.1.0: observed status, explicit choices, no network
+/* YachtSense Link Emulator UI 1.1.2: observed status, explicit choices, no network
  * mutation by default. No inline CSS, remote assets or private VuCI widgets. */
 const h = globalThis.Vue?.h;
 const API = "/api/yachtsense-link-emulator-v1100";
@@ -12,8 +12,8 @@ export function unwrap(value, predicate, depth=0) {
   return null;
 }
 const resultOf = (v) => unwrap(v,(x)=>typeof x.ok==="boolean");
-function messageOf(error) { const body=resultOf(error?.response?.data);return body?.message || (error?.code==="ECONNABORTED"?"The request timed out. The previous status is no longer considered current.":error?.message) || "Request failed"; }
-function stylesheet() { const id="ysle-1100-css";if(document.getElementById(id))return;const link=document.createElement("link");link.id=id;link.rel="stylesheet";link.href="/assets/yachtsense-link-emulator-v1100.css";document.head.appendChild(link); }
+function messageOf(error) { const data=error?.response?.data;const body=resultOf(data);const details=array(data?.errors).map(e=>e.error||e.message).filter(Boolean).join("; ");if(error?.response?.status===403)return details||"RutOS denied access (403). Sign in again after updating the package to refresh your permissions.";return body?.message||details||(error?.code==="ECONNABORTED"?"The request timed out. The previous status is no longer considered current.":error?.message)||"Request failed"; }
+function stylesheet() { const id="ysle-1120-css";if(document.getElementById(id))return;const link=document.createElement("link");link.id=id;link.rel="stylesheet";link.href="/assets/yachtsense-link-emulator-v1120.css";document.head.appendChild(link); }
 const modeLabel = (s) => ({auto:"Automatic",builtin:"Built-in relay",avahi:"Existing Avahi reflector",direct:"Direct discovery",disabled:"Relay disabled",conflict:"Reflector conflict"}[s] || "Not active");
 export default {
   name:"YachtSenseLinkEmulatorV1100",
@@ -29,6 +29,7 @@ export default {
       if(this.inFlight||!this.alive)return;this.inFlight=true;const epoch=this.writeEpoch;
       try{const response=await this.$axios.get(`${API}/status`,{timeout:6500});if(!this.alive||epoch!==this.writeEpoch)return;
         const p=unwrap(response,(x)=>x.config&&x.status);if(!p)throw new Error(resultOf(response)?.message||"Unexpected backend response");
+        const configError=array(p.status?.errors).find(e=>String(e).startsWith("cannot read configuration:"));if(configError)throw new Error(configError);
         const cfg={...defaults(),...p.config,remote_interfaces:array(p.config.remote_interfaces)};
         if(!this.isDirty()&&!this.busy)this.form=clone(cfg);this.saved=clone(cfg);this.payload=p;this.statusValid=p.snapshot_ok!==false;this.statusError=this.statusValid?"":"Interface status could not be read";
         if(this.localAction&&p.action?.id===this.localAction.id&&!this.pending())this.localAction=null;
@@ -40,14 +41,14 @@ export default {
     manageAddress(on){this.mark("manage_ip",on);if(on){this.mark("raynet_mode","manual");this.mark("axiom_interface",this.payload?.networks?.raynet||this.form.axiom_interface);}else this.mark("remove_ip_on_stop",false);},
     chooseAuto(){this.mark("raynet_mode","auto");this.mark("manage_ip",false);this.mark("remove_ip_on_stop",false);},
     async save(){
-      if(this.busy||this.pending())return;this.busy="save";this.actionError="";this.writeEpoch++;const revision=this.editRevision;
+      if(this.busy||this.pending()||!this.statusValid)return;this.busy="save";this.actionError="";this.writeEpoch++;const revision=this.editRevision;
       const data={...clone(this.form),prefix:Number(this.form.prefix),ttl:Number(this.form.ttl),health_port:Number(this.form.health_port),log_lines:Number(this.form.log_lines)};
       try{const response=await this.$axios.post(`${API}/actions/save`,{data:{payload:JSON.stringify(data)}},{timeout:10000});const r=resultOf(response);if(r?.ok!==true)throw new Error(r?.message||"Save did not return a confirmed result");if(!this.alive)return;
         this.saved=clone(data);if(revision===this.editRevision)this.form=clone(data);this.localAction={id:r.action_id,at:Date.now()};this.editor="";
       }catch(e){if(this.alive)this.actionError=messageOf(e);}finally{this.busy="";if(this.alive)await this.refresh();}
     },
     async action(kind){
-      if(this.busy||this.pending()||this.isDirty())return;this.busy=kind;this.actionError="";this.writeEpoch++;
+      if(this.busy||this.pending()||this.isDirty()||!this.statusValid)return;this.busy=kind;this.actionError="";this.writeEpoch++;
       try{const response=await this.$axios.post(`${API}/actions/${kind}`,{data:{}},{timeout:10000});const r=resultOf(response);if(r?.ok!==true)throw new Error(r?.message||"Service operation was not confirmed");if(!this.alive)return;this.localAction={id:r.action_id,at:Date.now()};
       }catch(e){if(this.alive)this.actionError=messageOf(e);}finally{this.busy="";if(this.alive)await this.refresh();}
     },
@@ -72,22 +73,22 @@ export default {
     },
     button(text,fn,kind="",disabled=false,attrs={}){return h("button",{type:"button",class:["ys-btn",kind],disabled,onClick:fn,...attrs},text);},
     badge(kind,text){return h("span",{class:["ys-state",kind]},[h("span",{"aria-hidden":"true"},kind==="ok"?"✓":kind==="bad"||kind==="warn"?"!":"○"),text]);},
-    row(label,main,detail,kind,tag,edit=""){return h("div",{class:"ys-row",key:label},[h("div",{class:"ys-row-label"},label),h("div",{class:"ys-row-value"},[h("strong",main),detail?h("span",{class:"ys-note"},detail):null]),h("div",{class:"ys-row-end"},[this.badge(this.statusValid?kind:"neutral",this.statusValid?tag:"Unknown"),edit?this.button(this.editor===edit?"Done":"Change…",()=>{this.editor=this.editor===edit?"":edit;},"link",!!this.busy,{"aria-expanded":this.editor===edit}):null])]);},
-    radio(group,value,label,detail,fn){return h("label",{class:"ys-choice",key:value},[h("input",{type:"radio",name:`ys-${group}`,checked:this.form[group]===value,disabled:!!this.busy,onChange:fn}),h("span",[h("strong",label),h("small",detail)])]);},
-    toggle(key,label,detail,fn){return h("label",{class:"ys-choice"},[h("input",{type:"checkbox",checked:!!this.form[key],disabled:!!this.busy,onChange:(e)=>fn?fn(e.target.checked):this.mark(key,e.target.checked)}),h("span",[h("strong",label),h("small",detail)])]);},
-    field(key,label,type="text",detail="",extra={}){return h("div",{class:"ys-field"},[h("label",{for:`ys-${key}`},label),h("input",{id:`ys-${key}`,type,value:this.form[key],disabled:!!this.busy,onInput:e=>this.mark(key,e.target.value),...extra}),detail?h("small",detail):null]);},
+    row(label,main,detail,kind,tag,edit=""){return h("div",{class:"ys-row",key:label},[h("div",{class:"ys-row-label"},label),h("div",{class:"ys-row-value"},[h("strong",this.statusValid?main:"Status unavailable"),this.statusValid&&detail?h("span",{class:"ys-note"},detail):null]),h("div",{class:"ys-row-end"},[this.badge(this.statusValid?kind:"neutral",this.statusValid?tag:"Unknown"),edit?this.button(this.editor===edit?"Done":"Change…",()=>{this.editor=this.editor===edit?"":edit;},"link",!!this.busy||!this.statusValid,{"aria-expanded":this.editor===edit}):null])]);},
+    radio(group,value,label,detail,fn){return h("label",{class:"ys-choice",key:value},[h("input",{type:"radio",name:`ys-${group}`,checked:this.form[group]===value,disabled:!!this.busy||!this.statusValid,onChange:fn}),h("span",[h("strong",label),h("small",detail)])]);},
+    toggle(key,label,detail,fn){return h("label",{class:"ys-choice"},[h("input",{type:"checkbox",checked:!!this.form[key],disabled:!!this.busy||!this.statusValid,onChange:(e)=>fn?fn(e.target.checked):this.mark(key,e.target.checked)}),h("span",[h("strong",label),h("small",detail)])]);},
+    field(key,label,type="text",detail="",extra={}){return h("div",{class:"ys-field"},[h("label",{for:`ys-${key}`},label),h("input",{id:`ys-${key}`,type,value:this.form[key],disabled:!!this.busy||!this.statusValid,onInput:e=>this.mark(key,e.target.value),...extra}),detail?h("small",detail):null]);},
     netEditor(){
       const all=array(this.payload?.interfaces);const ed=this.editor;
       if(ed==="raynet")return h("div",{class:"ys-editor"},[
         this.radio("raynet_mode","auto","Automatic (recommended)",`Find the interface that already owns ${this.form.ipaddr}; do not add or remove addresses.`,()=>this.chooseAuto()),
         this.radio("raynet_mode","manual","Choose an interface","Keep this choice even after refreshing or restarting the router.",()=>this.mark("raynet_mode","manual")),
-        this.form.raynet_mode==="manual"?h("label",{class:"ys-field"},[h("span","RayNet interface"),h("select",{value:this.form.axiom_interface,disabled:!!this.busy,onChange:e=>this.mark("axiom_interface",e.target.value)},[...all.map(i=>h("option",{value:i.name,key:i.name},`${i.name} — ${array(i.addresses).join(", ")||"No IPv4 address"}`)),!all.some(i=>i.name===this.form.axiom_interface)?h("option",{value:this.form.axiom_interface},`${this.form.axiom_interface} — unavailable`):null])]):null
+        this.form.raynet_mode==="manual"?h("label",{class:"ys-field"},[h("span","RayNet interface"),h("select",{value:this.form.axiom_interface,disabled:!!this.busy||!this.statusValid,onChange:e=>this.mark("axiom_interface",e.target.value)},[...all.map(i=>h("option",{value:i.name,key:i.name},`${i.name} — ${array(i.addresses).join(", ")||"No IPv4 address"}`)),!all.some(i=>i.name===this.form.axiom_interface)?h("option",{value:this.form.axiom_interface},`${this.form.axiom_interface} — unavailable`):null])]):null
       ]);
       if(ed==="app")return h("div",{class:"ys-editor"},[
         this.radio("app_mode","auto","Automatic (recommended)","Prefer br-lan with a private IPv4 address; never automatically choose a WAN/default-route interface.",()=>this.mark("app_mode","auto")),
         this.radio("app_mode","manual","Choose app network(s)","Choose where your phone or tablet connects; this may be the same interface as RayNet.",()=>this.mark("app_mode","manual")),
         this.form.app_mode==="manual"?h("div",[
-          ...all.filter(i=>this.showAll||array(i.addresses).length||this.form.remote_interfaces.includes(i.name)).map(i=>h("label",{class:"ys-choice",key:i.name},[h("input",{type:"checkbox",checked:this.form.remote_interfaces.includes(i.name),disabled:!!this.busy,onChange:e=>this.toggleRemote(i.name,e.target.checked)}),h("span",[h("strong",i.name),h("small",array(i.addresses).join(", ")||"No IPv4 address — unavailable until configured")])])),
+          ...all.filter(i=>this.showAll||array(i.addresses).length||this.form.remote_interfaces.includes(i.name)).map(i=>h("label",{class:"ys-choice",key:i.name},[h("input",{type:"checkbox",checked:this.form.remote_interfaces.includes(i.name),disabled:!!this.busy||!this.statusValid,onChange:e=>this.toggleRemote(i.name,e.target.checked)}),h("span",[h("strong",i.name),h("small",array(i.addresses).join(", ")||"No IPv4 address — unavailable until configured")])])),
           this.button(this.showAll?"Hide interfaces without IPv4":"Show all interfaces",()=>{this.showAll=!this.showAll;},"link")
         ]):null
       ]);
@@ -110,11 +111,11 @@ export default {
     }
   },
   render(){
-    if(!h)return null;const p=this.payload||{},s=p.status||{},v=s.runtime||{},n=p.networks||{},a=p.avahi||{},c=p.config||this.saved;const summary=this.overall();const dirty=this.isDirty();const disabled=!!this.busy||this.pending();
+    if(!h)return null;const p=this.payload||{},s=p.status||{},v=s.runtime||{},n=p.networks||{},a=p.avahi||{},c=p.config||this.saved;const summary=this.overall();const dirty=this.isDirty();const disabled=!!this.busy||this.pending()||!this.statusValid;
     const actualRaynet=s.running?v.raynet:n.raynet;const actualApps=s.running?array(v.apps):array(n.apps);const iface=array(p.interfaces).find(i=>i.name===actualRaynet);const addresses=array(iface?.addresses);const hasRaynet=addresses.some(ip=>ip.split("/")[0]===c.ipaddr);const actualEngine=s.running?v.engine:s.configured_engine;
     const draftNote=dirty?"Unsaved changes below; statuses still describe the running service.":"Status reflects the running service, not just the selected settings.";
     return h("main",{class:"ys-page"},[
-      h("header",{class:"ys-header"},[h("div",[h("p",{class:"ys-eyebrow"},"RAYMARINE · NETWORK DISCOVERY"),h("h2","YachtSense Link"),h("p",{class:"ys-subtitle"},"Your existing network. One clear view.")]),h("div",{class:"ys-power"},[h("span",c.enabled?"On":"Off"),this.button("",()=>this.action(c.enabled?"stop":"start"),`switch ${c.enabled?"on":""}`,disabled||dirty||this.loading||!this.statusValid,{role:"switch","aria-checked":!!c.enabled,"aria-label":"Enable YachtSense Link Emulator",title:dirty?"Save or cancel changes before switching":"Enable or disable the saved configuration"})])]),
+      h("header",{class:"ys-header"},[h("div",[h("p",{class:"ys-eyebrow"},"RAYMARINE · NETWORK DISCOVERY"),h("h2","YachtSense Link"),h("p",{class:"ys-subtitle"},"Your existing network. One clear view.")]),h("div",{class:"ys-power"},[h("span",this.statusValid?(c.enabled?"On":"Off"):"Unknown"),this.button("",()=>this.action(c.enabled?"stop":"start"),`switch ${this.statusValid&&c.enabled?"on":""}`,disabled||dirty||this.loading||!this.statusValid,{role:"switch","aria-checked":this.statusValid&&!!c.enabled,"aria-label":"Enable YachtSense Link Emulator",title:dirty?"Save or cancel changes before switching":"Enable or disable the saved configuration"})])]),
       h("section",{class:"ys-card"},[
         h("div",{class:"ys-hero","aria-live":"polite"},[h("div",{class:["ys-hero-icon",summary.kind],"aria-hidden":"true"},summary.kind==="ok"?"✓":summary.kind==="bad"||summary.kind==="warn"?"!":"○"),h("div",[h("h3",summary.title),h("p",summary.detail)])]),
         h("div",{class:"ys-status"},[
@@ -135,11 +136,11 @@ export default {
         h("p",{class:"ys-note"},"Normally no changes are needed here. Address management changes the selected interface only when explicitly enabled."),
         this.toggle("manage_ip","Manage the RayNet address","Off means observe only; an existing address is never claimed or removed.",(on)=>this.manageAddress(on)),
         this.form.manage_ip?this.toggle("remove_ip_on_stop","Remove an address added by this package on stop","An address that already existed is never removed."):null,
-        h("div",{class:"ys-form-grid"},[this.field("ipaddr","RayNet address to find","text","Normally 198.18.0.1"),this.field("prefix","Prefix for explicitly added addresses","number","Automatic detection uses the prefix already present.",{min:0,max:32}),this.field("serial","YachtSense serial"),this.field("version","Advertised firmware string"),this.field("hostname","mDNS hostname"),this.field("instance","Service instance"),this.field("health_port","HTTP health port","number","This does not change the advertised SRV identity port 80.",{min:1,max:65535}),this.field("ttl","Advertisement TTL (seconds)","number","",{min:1,max:86400}),this.field("log_lines","Lines in Diagnostics","number","",{min:5,max:200}),h("label",{class:"ys-field"},[h("span","Log detail"),h("select",{value:this.form.log_level,disabled:!!this.busy,onChange:e=>this.mark("log_level",e.target.value)},[h("option",{value:"info"},"Info"),h("option",{value:"debug"},"Debug")])])]),
+        h("div",{class:"ys-form-grid"},[this.field("ipaddr","RayNet address to find","text","Normally 198.18.0.1"),this.field("prefix","Prefix for explicitly added addresses","number","Automatic detection uses the prefix already present.",{min:0,max:32}),this.field("serial","YachtSense serial"),this.field("version","Advertised firmware string"),this.field("hostname","mDNS hostname"),this.field("instance","Service instance"),this.field("health_port","HTTP health port","number","This does not change the advertised SRV identity port 80.",{min:1,max:65535}),this.field("ttl","Advertisement TTL (seconds)","number","",{min:1,max:86400}),this.field("log_lines","Lines in Diagnostics","number","",{min:5,max:200}),h("label",{class:"ys-field"},[h("span","Log detail"),h("select",{value:this.form.log_level,disabled:!!this.busy||!this.statusValid,onChange:e=>this.mark("log_level",e.target.value)},[h("option",{value:"info"},"Info"),h("option",{value:"debug"},"Debug")])])]),
         h("h4","Individual components"),this.toggle("mdns_enabled","YachtSense identity publisher","Normally on; disabling it may prevent Axiom from finding the emulator."),this.toggle("web_enabled","HTTP health response","Normally on; this is a local liveness response, not an internet connectivity test.")
       ])]),
       h("details",{class:"ys-details",open:this.diagnosticsOpen,onToggle:e=>{this.diagnosticsOpen=e.target.open;if(e.target.open)this.loadDiagnostics();}},[h("summary","Diagnostics & logs"),this.diagnosticsOpen?this.diagnosticsView():null]),
-      h("footer",{class:"ys-footer"},`Package ${s.package_version||"1.1.0"} · Settings stored on this router`),
+      h("footer",{class:"ys-footer"},`Package ${s.package_version||"1.1.2"} · UI 1.1.2 · Settings stored on this router`),
       dirty?h("div",{class:"ys-savebar",role:"region","aria-label":"Unsaved settings"},[h("span","Unsaved changes"),h("div",[this.button("Cancel",()=>this.discard(),"secondary",!!this.busy),this.button(this.busy==="save"?"Saving…":"Save changes",()=>this.save(),"primary",disabled)])]):null
     ]);
   }

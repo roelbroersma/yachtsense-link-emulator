@@ -1,3 +1,5 @@
 build/
 dist/
+test-results/
 __pycache__/
+*.pyc

@@ -1,0 +1,69 @@
+#!/usr/bin/luajit
+-- Finite privileged RPC bridge. rpcd runs it as its root:root file owner.
+-- No arbitrary commands, paths, environments or shell expressions are accepted.
+local json = require("luci.jsonc")
+local methods = {status={}, diagnostics={}, save={payload=""}, start={}, stop={}, restart={}}
+local function emit(value)
+  io.write(json.stringify(value), "\n")
+end
+local function fail(message)
+  emit({ok=false, message=message})
+end
+if arg[1] == "list" and arg[2] == nil then
+  io.write(' {"status":{},"diagnostics":{},"save":{"payload":""},"start":{},"stop":{},"restart":{}}\n')
+  return
+end
+local method = arg[2]
+if arg[1] ~= "call" or not methods[method] or arg[3] ~= nil then
+  fail("Unsupported YachtSense RPC operation")
+  return
+end
+-- The escaped RPC envelope may exceed the 16 KiB decoded settings limit.
+local raw = io.read(131073) or ""
+if #raw > 131072 then fail("RPC request exceeds 128 KiB"); return end
+local input = json.parse(raw)
+if type(input) ~= "table" then fail("RPC request must be a JSON object"); return end
+for key in pairs(input) do
+  if key ~= "payload" and key ~= "ubus_rpc_session" then
+    fail("Unsupported RPC argument"); return
+  end
+end
+local payload = ""
+if method == "save" then
+  payload = input.payload
+  if type(payload) ~= "string" or #payload < 2 or #payload > 16384 or payload:find("%z") then
+    fail("Save requires a JSON payload of 2 to 16384 bytes without NUL"); return
+  end
+elseif input.payload ~= nil then
+  fail("This RPC operation does not accept a payload"); return
+end
+local prefix = ""
+local conf = io.open("/etc/opkg.conf", "r")
+if conf then
+  for line in conf:lines() do
+    local root = line:match("^%s*dest%s+root%s+(%S+)")
+    if root then prefix = root:gsub("/+$", ""); break end
+  end
+  conf:close()
+end
+local executable
+for _, path in ipairs({prefix .. "/usr/sbin/yachtsense-link-emulator", "/usr/local/usr/sbin/yachtsense-link-emulator", "/usr/sbin/yachtsense-link-emulator"}) do
+  local f = io.open(path, "rb")
+  if f then f:close(); executable=path; break end
+end
+if not executable then fail("YachtSense executable is missing"); return end
+local function quote(value)
+  return "'" .. value:gsub("'", "'\\''") .. "'"
+end
+local deadline = method == "diagnostics" and 12 or 8
+local command = "printf '%s' " .. quote(payload) .. " | timeout " .. deadline .. " " .. quote(executable) .. " --api " .. quote(method)
+local pipe = io.popen(command, "r")
+if not pipe then fail("Could not start the privileged YachtSense backend"); return end
+local output = pipe:read(262145) or ""
+pipe:close()
+if #output > 262144 then fail("YachtSense backend response exceeds 256 KiB"); return end
+local result = json.parse(output)
+if type(result) ~= "table" or type(result.ok) ~= "boolean" then
+  fail("Privileged YachtSense backend timed out or returned invalid JSON"); return
+end
+io.write(output, "\n")

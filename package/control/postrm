@@ -1,9 +1,18 @@
 #!/bin/sh
-[ -n "${IPKG_INSTROOT:-}" ] && exit 0
+ROOT="$(awk '$1 == "dest" && $2 == "root" {print $3; exit}' /etc/opkg.conf 2>/dev/null)"
+ROOT="${ROOT%/}"
+INSTROOT="${IPKG_INSTROOT:-}"; INSTROOT="${INSTROOT%/}"
+case "$INSTROOT" in ""|"$ROOT") ;; *) exit 0 ;; esac
 [ "${PKG_UPGRADE:-0}" = '1' ] && exit 0
 [ "${1:-}" = 'upgrade' ] && exit 0
-# Keep the old upgrade hooks from interrupting installation requests. On actual
-# removal reload routes/ACLs without restarting the web server.
-timeout 3 ubus call session reload_acls >/dev/null 2>&1 || true
-timeout 3 ubus send vuci.notify '{"event":"reload_routes"}' >/dev/null 2>&1 || true
+# Do not leave a removed RPC plugin or stale ACL registered.
+(
+  sleep 8
+  killall -HUP ubusd 2>/dev/null || true
+  sleep 2
+  timeout 15 /etc/init.d/rpcd restart >/dev/null 2>&1 || true
+  timeout 5 ubus call session reload_acls >/dev/null 2>&1 || true
+  killall -HUP uhttpd 2>/dev/null || true
+  timeout 5 ubus send vuci.notify '{"event":"reload_routes"}' >/dev/null 2>&1 || true
+) </dev/null >/dev/null 2>&1 &
 exit 0

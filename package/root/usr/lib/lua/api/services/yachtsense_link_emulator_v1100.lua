@@ -1,52 +1,35 @@
--- Thin authenticated RutOS API adapter. All validation, configuration writes,
--- runtime detection and bounded service actions live in the static executable.
+-- Authenticated RutOS API adapter: use a finite rpcd bridge, not a process
+-- inheriting the unprivileged uhttpd identity. Keep configuration root-only.
 local FunctionService = require("api/FunctionService")
-local json = require("luci.jsonc")
+local ubus = require("ubus")
 local Service = FunctionService:new()
-
-local function quote(value)
-  return "'" .. tostring(value or ""):gsub("'", "'\\''") .. "'"
-end
-
-local function executable()
-  local root = ""
-  local f = io.open("/etc/opkg.conf", "r")
-  if f then
-    for line in f:lines() do
-      local path = line:match("^%s*dest%s+root%s+(%S+)")
-      if path then root = path:gsub("/+$", ""); break end
-    end
-    f:close()
-  end
-  for _, path in ipairs({root .. "/usr/sbin/yachtsense-link-emulator", "/usr/local/usr/sbin/yachtsense-link-emulator", "/usr/sbin/yachtsense-link-emulator"}) do
-    local file = io.open(path, "rb")
-    if file then file:close(); return path end
-  end
-  return nil
-end
+local RPC_OBJECT = "yachtsense-link-emulator"
 
 local function invoke(method, payload)
-  local program = executable()
-  if not program then return {ok=false, message="YachtSense executable was not found in the package root"} end
-  local timeout = method == "diagnostics" and 12 or 8
-  local command = "printf '%s' " .. quote(payload or "") .. " | timeout " .. timeout .. " " .. quote(program) .. " --api " .. quote(method) .. " 2>/dev/null"
-  local pipe = io.popen(command, "r")
-  if not pipe then return {ok=false, message="Could not launch YachtSense backend"} end
-  local text = pipe:read("*a") or ""
-  pipe:close()
-  local result = json.parse(text)
+  local args = {}
+  if method == "save" then
+    if type(payload) ~= "string" or #payload < 2 or #payload > 16384 then
+      return {ok=false, message="Save requires a JSON payload of 2 to 16384 bytes"}
+    end
+    args.payload = payload
+  end
+  local conn = ubus.connect()
+  if not conn then return {ok=false, message="Could not connect to the local RutOS bus"} end
+  local success, result, code = pcall(conn.call, conn, RPC_OBJECT, method, args)
+  pcall(conn.close, conn)
+  if not success then
+    return {ok=false, message="YachtSense RPC bridge error: " .. tostring(result)}
+  end
   if type(result) ~= "table" or type(result.ok) ~= "boolean" then
-    return {ok=false, message="YachtSense backend timed out or returned invalid data; check Diagnostics or CLI --api status"}
+    return {ok=false, message="YachtSense RPC bridge is unavailable or access was denied (ubus code " .. tostring(code or "unknown") .. "); reload rpcd and its ACLs"}
   end
   return result
 end
-
 local function respond(self, method, payload)
   local success, result = pcall(invoke, method, payload)
-  if not success then result = {ok=false, message="YachtSense API error: " .. tostring(result)} end
+  if not success then result={ok=false, message="YachtSense API error: " .. tostring(result)} end
   return self:ResponseOK(result)
 end
-
 function Service:GET_TYPE_status() return respond(self, "status") end
 function Service:GET_TYPE_diagnostics() return respond(self, "diagnostics") end
 function Service:SaveAction()
@@ -57,7 +40,7 @@ local save = Service:action("save", Service.SaveAction)
 local payload = save:option("payload")
 payload.require = true
 payload.maxlength = 16384
-function payload:validate(value) return type(value) == "string" and #value >= 2 and #value <= 16384 end
+function payload:validate(value) return type(value)=="string" and #value>=2 and #value<=16384 end
 function Service:StartAction() return respond(self, "start") end
 function Service:StopAction() return respond(self, "stop") end
 function Service:RestartAction() return respond(self, "restart") end

@@ -1,0 +1,26 @@
+{
+  "source": "User-provided CLI output in this conversation; not a simulated device",
+  "firmware": "RUTX_R_00.07.25.3",
+  "opkg": "0.6.3",
+  "libsolv": "0.7.28",
+  "package_root": "/usr/local",
+  "board_name": "teltonika,rutx",
+  "model": "RUTX14 STM32",
+  "kernel": "6.6.137",
+  "architectures": {
+    "all": 1,
+    "any": 6,
+    "noarch": 11,
+    "armv5hf-vfp": 16,
+    "armv5ehf-vfp": 21,
+    "armv6hf-vfp": 26,
+    "armv7ahf-vfp": 31,
+    "armv7vehf-vfp": 36,
+    "armv7vehf-neon": 41,
+    "armv7vehf-neon-vfpv4": 46,
+    "cortexa7hf-vfp": 51,
+    "cortexa7hf-neon": 56,
+    "cortexa7hf-neon-vfpv4": 61,
+    "rutx": 66
+  }
+}

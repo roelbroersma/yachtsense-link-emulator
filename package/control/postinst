@@ -1,0 +1,21 @@
+#!/bin/sh
+[ "${IPKG_NO_SCRIPT:-}" = "1" ] && exit 0
+ROOT="$(awk '$1 == "dest" && $2 == "root" {print $3; exit}' /etc/opkg.conf 2>/dev/null)"
+ROOT="${ROOT%/}"
+INSTROOT="${IPKG_INSTROOT:-}"
+INSTROOT="${INSTROOT%/}"
+case "$INSTROOT" in ""|"$ROOT") ;; *) exit 0 ;; esac
+if [ -s /lib/functions.sh ]; then
+  . /lib/functions.sh
+  if command -v default_postinst >/dev/null 2>&1; then
+    default_postinst "$0" "$@" || exit $?
+  fi
+fi
+PLUGIN="$ROOT/usr/libexec/rpcd/yachtsense-link-emulator"
+[ -f "$PLUGIN" ] || { echo "Missing YachtSense RPC plugin" >&2; exit 1; }
+chown 0:0 "$PLUGIN" || exit 1
+chmod 0755 "$PLUGIN" || exit 1
+RELOAD="$ROOT/usr/libexec/yachtsense-link-emulator-reload-ui"
+[ -x "$RELOAD" ] || { echo "Missing YachtSense UI registration helper" >&2; exit 1; }
+( sleep 8; "$RELOAD" ) </dev/null >/dev/null 2>&1 &
+exit 0

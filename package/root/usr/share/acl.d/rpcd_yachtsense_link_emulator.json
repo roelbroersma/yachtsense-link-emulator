@@ -1,0 +1,18 @@
+{
+  "user": "rpcd",
+  "access": {
+    "yachtsense-link-emulator": {
+      "methods": [
+        "status",
+        "diagnostics",
+        "save",
+        "start",
+        "stop",
+        "restart"
+      ]
+    }
+  },
+  "publish": [
+    "yachtsense-link-emulator"
+  ]
+}

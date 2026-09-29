@@ -1,10 +1,5 @@
-## RUTX14 · RutOS RUTX_R_00.07.25.3
+Voor **Teltonika RUTX14 met RutOS RUTX_R_00.07.25.3**.
 
-Same **1.1.1** package as previously supplied, now also available as a standalone IPK for CLI diagnosis. No runtime changes in this publication.
+Upload de **.tar.gz zonder uitpakken** via **System → Package Manager → Upload package**; vooraf verwijderen is niet nodig en bestaande instellingen blijven behouden. Wacht circa 20 seconden en log opnieuw in.
 
-- **CLI / SSH:** `tlt_custom_pkg_yachtsense-link-emulator_1.1.1-1_cortexa7hf-neon-vfpv4.ipk`
-- **WebUI upload:** `yachtsense-link-emulator_1.1.1-1_RUTX_00.07.25.3.tar.gz` — upload without extracting.
-
-The build checks that both files are byte-identical to the original files. Architecture: `cortexa7hf-neon-vfpv4`; installation root: `/usr/local`.
-
-**Diagnostic prerelease:** the router accepted the revised compatibility metadata but its WebUI still reported a generic installation failure. Actual installation is not confirmed. Use `opkg -V4 install` on the IPK to obtain the underlying error. No signature, dependency or architecture bypass is applied.
+Bevat de complete WebUI-installatie- en RPC-rechtenfix, inclusief de bij jou bevestigde `publish`- én `access`-rechten. De **.ipk** is uitsluitend de alternatieve CLI-installatie. De nieuwe bundel is lokaal en in CI getest; installatie van deze geconsolideerde versie op de router is nog te bevestigen.

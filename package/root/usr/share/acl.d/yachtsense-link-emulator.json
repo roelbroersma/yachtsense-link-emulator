@@ -1,0 +1,15 @@
+{
+  "user": "uhttpd",
+  "access": {
+    "yachtsense-link-emulator": {
+      "methods": [
+        "status",
+        "diagnostics",
+        "save",
+        "start",
+        "stop",
+        "restart"
+      ]
+    }
+  }
+}
