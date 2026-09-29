@@ -19,37 +19,30 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends squashfs-tools lua5.1 jq qemu-user-static
           cp /usr/bin/qemu-arm-static review-output/qemu-arm-static
-          cp /usr/bin/lua5.1 review-output/lua5.1-linux-amd64
           python3 - <<'PY'
-          import urllib.request, re, pathlib, subprocess, hashlib, gzip
+          import urllib.request, pathlib, subprocess, hashlib
           out = pathlib.Path('review-output')
-          url = 'https://firmware.teltonika-networks.com/7.25.3/RUTX/Packages/iperf3.tar.gz'
-          out.joinpath('sample-package-url.txt').write_text(url+'\n')
-          urllib.request.urlretrieve(url,out/'sample-package.tar.gz')
           url = 'https://firmware.teltonika-networks.com/7.25.3/RUTX/RUTX_R_00.07.25.3_WEBUI.bin'
           out.joinpath('firmware-url.txt').write_text(url+'\n')
           urllib.request.urlretrieve(url, '/tmp/rutos.bin')
           data = pathlib.Path('/tmp/rutos.bin').read_bytes()
           assert hashlib.md5(data).hexdigest() == '91030df254424854f3a5d1ded46909d5'
-          out.joinpath('firmware-md5.txt').write_text(hashlib.md5(data).hexdigest()+'\n')
-          out.joinpath('firmware.bin.gz').write_bytes(gzip.compress(data))
-          offsets = [m.start() for m in re.finditer(b'hsqs', data)]
+          offset = data.find(b'hsqs')
+          assert offset > 0
+          pathlib.Path('/tmp/rootfs.sqfs').write_bytes(data[offset:])
           root = out / 'firmware-root'
-          for offset in offsets:
-              r = subprocess.run(['unsquashfs','-no-xattrs','-no-progress','-offset',str(offset),'-d',str(root),'/tmp/rutos.bin'], capture_output=True, text=True)
-              print(r.stdout, r.stderr)
-              if root.joinpath('etc').exists(): break
-          else: raise RuntimeError('Could not extract firmware root; squashfs offsets='+str(offsets))
-          print('Extracted official firmware:', url)
+          r = subprocess.run(['unsquashfs','-no-xattrs','-no-progress','-d',str(root),'/tmp/rootfs.sqfs'], capture_output=True, text=True)
+          print(r.stdout, r.stderr)
+          assert root.joinpath('etc/version').exists()
+          print('Extracted firmware version:', root.joinpath('etc/version').read_text())
           subprocess.run(['tar','-czf',str(out/'firmware-root.tar.gz'),'-C',str(root),'.'], check=True)
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rutos-7253-inspection
+          name: rutos-7253-rootfs
           path: |
             review-output/*.gz
             review-output/*.txt
-            review-output/lua5.1-linux-amd64
             review-output/qemu-arm-static
           retention-days: 7
