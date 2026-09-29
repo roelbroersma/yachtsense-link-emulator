@@ -1,0 +1,3 @@
+#!/bin/sh
+# Native default_prerm stops the daemon. Do not mutate network addresses here.
+exit 0

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Native default_postinst handles package-root routes, ACLs and init scripts.
+[ -n "${IPKG_INSTROOT:-}" ] && exit 0
+logger -t yachtsense-link-emulator 'Package installed; open Services > YachtSense Link Emulator' || true
+exit 0

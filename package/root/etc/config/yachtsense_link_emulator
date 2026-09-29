@@ -1,47 +1,22 @@
-# YachtSense Link Emulator UCI configuration for RutOS 7.
-# Use Services > YachtSense Link Emulator in VuCI whenever possible.
-
+# YachtSense Link Emulator. Observe existing interfaces by default.
 config emulator 'main'
-	# Keep a clean installation disabled until the detected network is reviewed.
-	option enabled '0'
-
-	# Core YachtSense functions. The simplified UI keeps these under Advanced
-	# because a normal installation should leave both enabled.
-	option mdns_enabled '1'
-	option web_enabled '1'
-
-	# The VuCI page automatically detects the RayNet interface from the exact
-	# address below and stores the detected interface here when changes are saved.
-	option axiom_interface 'br-lan'
-
-	# One or more interfaces on which phones/tablets run the Raymarine app.
-	# VuCI prefers br-lan automatically when it is a suitable app-side network.
-	list remote_interface 'br-lan'
-
-	# Discovery choices:
-	#   auto     - reuse an existing Avahi reflector, otherwise built-in relay
-	#   force    - force the built-in YachtSense discovery relay
-	#   disabled - do not use the built-in relay (e.g. existing Avahi reflector)
-	option relay_mode 'auto'
-
-	# Observe the existing RayNet address by default. Only when manage_ip is
-	# explicitly enabled may this package add the address itself.
-	option manage_ip '0'
-	option ipaddr '198.18.0.1'
-	option prefix '21'
-	option remove_ip_on_stop '0'
-
-	# Identity published in DNS-SD. These defaults mirror a real YachtSense Link.
-	option serial 'AF002A4'
-	option version 'V142.242.530'
-	option hostname 'yachtsense-main'
-	option instance 'yachtsense-main Settings'
-	option ttl '120'
-
-	# Axiom connection-monitor endpoint.
-	option health_port '7777'
-
-	# Info logs friendly discovery events; Debug also logs individual relays and
-	# follow-up DNS-SD resolution queries.
-	option log_level 'info'
-	option log_lines '40'
+ option enabled '0'
+ option mdns_enabled '1'
+ option web_enabled '1'
+ option raynet_mode 'auto'
+ option app_mode 'auto'
+ option axiom_interface 'br-lan'
+ list remote_interface 'br-lan'
+ option discovery_mode 'auto'
+ option manage_ip '0'
+ option ipaddr '198.18.0.1'
+ option prefix '21'
+ option remove_ip_on_stop '0'
+ option serial 'AF002A4'
+ option version 'V142.242.530'
+ option hostname 'yachtsense-main'
+ option instance 'yachtsense-main Settings'
+ option ttl '120'
+ option health_port '7777'
+ option log_level 'info'
+ option log_lines '40'

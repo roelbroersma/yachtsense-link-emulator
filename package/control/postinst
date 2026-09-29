@@ -1,8 +1,0 @@
-#!/bin/sh
-
-# This file is installed as postinst-pkg and sourced by RutOS default_postinst.
-# Standard init-script, ACL, rpcd and VuCI route handling is intentionally left
-# to RutOS itself instead of duplicating it here.
-[ -n "${IPKG_INSTROOT:-}" ] && exit 0
-logger -t yachtsense-link-emulator "Package installed; open Services > YachtSense Link Emulator"
-exit 0
