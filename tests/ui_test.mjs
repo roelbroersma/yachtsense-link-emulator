@@ -4,7 +4,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 const root=path.resolve(import.meta.dirname,'..');
 globalThis.Vue={h:(tag,props,children)=>{if(children===undefined&&(typeof props!=='object'||Array.isArray(props)||props===null)){children=props;props={};}return {tag,props:props||{},children};}};
-const {default:component,unwrap}=await import(pathToFileURL(path.join(root,'package/root/www/views/services/YachtSenseLinkEmulatorV1200.js')));
+const {default:component,unwrap}=await import(pathToFileURL(path.join(root,'package/root/www/views/services/YachtSenseLinkEmulatorV1220.js')));
 const make=()=>{const vm=component.data();for(const [k,f] of Object.entries(component.methods))vm[k]=f.bind(vm);vm.alive=true;vm.statusValid=true;return vm;};
 const fixture=(vm)=>({ok:true,config:structuredClone(vm.saved),snapshot_ok:true,interfaces:[{name:'eth0.3',addresses:['198.18.0.1/21'],up:true},{name:'br-lan',addresses:['192.168.40.1/24'],up:true}],networks:{raynet:'eth0.3',cidr:'198.18.0.1/21',apps:['br-lan']},avahi:{running:false,eligible:false,reason:'No Avahi process detected'},action:{id:'old',state:'done'},status:{running:true,stale:false,config_pending:false,mdns_active:true,http_active:true,relay_active:true,axiom_detected:true,app_detected:false,errors:[],package_version:'1.1.2',runtime:{pid:9327,raynet:'eth0.3',cidr:'198.18.0.1/21',apps:['br-lan'],engine:'builtin',reason:'No existing reflector; built-in relay active',axiom:{ip:'198.18.3.234',name:'Axiom 9',service:'_rym_rrc._tcp.local'}}}});
 let count=0;const test=async(name,fn)=>{await fn();console.log('PASS '+name);count++;};
@@ -33,7 +33,7 @@ await test('HTTP 403 is explained as a permission failure',async()=>{const v=mak
 const esc=(s)=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 const html=(node)=>{if(node==null||node===false)return '';if(Array.isArray(node))return node.map(html).join('');if(typeof node!=='object')return esc(node);const {tag,props,children}=node;let attrs='';for(const [k,val]of Object.entries(props||{})){if(k==='key'||k.startsWith('on')||val===false||val==null)continue;let v=val;if(k==='class')v=Array.isArray(v)?v.filter(Boolean).join(' '):v;if(v===true)attrs+=` ${k}`;else attrs+=` ${k}="${esc(v)}"`;}return `<${tag}${attrs}>${html(children)}${['input','link','br'].includes(tag)?'':`</${tag}>`}`;};
 const v=make();v.payload=fixture(v);v.payload.config.enabled=true;v.saved=v.payload.config;v.form=structuredClone(v.saved);v.statusValid=true;v.loading=false;
-const doc=(body)=>`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="../package/root/www/assets/yachtsense-link-emulator-v1200.css"></head><body style="margin:0;background:#f4f5f7">${body}</body></html>`;
+const doc=(body)=>`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="../package/root/www/assets/yachtsense-link-emulator-v1220.css"></head><body style="margin:0;background:#f4f5f7">${body}</body></html>`;
 fs.mkdirSync(path.join(root,'build'),{recursive:true});fs.writeFileSync(path.join(root,'build/preview.html'),doc(html(component.render.call(v))));
 v.editor='discovery';v.form.discovery_mode='avahi';fs.writeFileSync(path.join(root,'build/preview-editor.html'),doc(html(component.render.call(v))));
 console.log(`${count} UI tests passed; preview HTML generated`);

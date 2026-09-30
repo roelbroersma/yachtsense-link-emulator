@@ -1,9 +1,11 @@
 Voor **RUTX14 · RutOS RUTX_R_00.07.25.3**.
 
-Upload de **.tar.gz zonder uitpakken** via **System → Package Manager → Upload package**; vooraf verwijderen is niet nodig. Wacht circa 20 seconden en log opnieuw in.
+**1.2.2:** RayNet staat nu onder **Services**; de aparte RayNet-kaart en de regel **Built-in relay — Active** zijn verwijderd. Axiom, Cerbo GX en wifi-/LAN-apparaten blijven samen onder **Devices**. De relay blijft ongewijzigd werken.
 
-Nieuwe compacte, loginvrije statuspagina op **http://192.168.40.1:8088/** (LAN/VPN) of **http://198.18.0.1:8088/** (RayNet): actieve WAN en signaal, boordwifi, apparaten, profiel, GPS/geofences, VPN, RMS en VXLAN. Lege velden en uitgeschakelde verbindingen blijven weg; beheer blijft achter de routerlogin.
+README en handleidingen zijn opnieuw ingericht met doel, werking, installatie, poorten en netwerkvoorbeelden vooraan.
 
-**Allow all source networks** staat voor deze testversie aan; bestaande firewallregels blijven van kracht. De **.ipk** is de CLI-installatieoptie.
+Upload de **.tar.gz zonder uitpakken** via **System → Package Manager → Upload package**. Vooraf verwijderen is niet nodig; dit is een upgrade vanaf 1.2.0 en de lokale testversie 1.2.1. Wacht circa 20 seconden en log opnieuw in.
 
-Automatisch en met gesimuleerde browserdata getest; de nieuwe statusmetingen en het openen vanuit de Axiom moeten nog op de router worden bevestigd.
+Status: **http://192.168.40.1:8088/** of **http://198.18.0.1:8088/**. Poort **7777** blijft de Axiom-healthcheck. De **.ipk** is de CLI-optie.
+
+Automatisch en in een browser met testgegevens gecontroleerd; deze nieuwe bundel is nog niet op de fysieke router/Axiom getest.

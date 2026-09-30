@@ -1,5 +1,9 @@
 # RutOS 7.25.3 integration: confirmed failures and fixes
 
+These are historical findings from the 1.1.x integration work. Their fixes are
+retained in 1.2.2; this guide is not an instruction to install the older builds.
+For first installation, use the [current quick start](../README.md#install-or-upgrade).
+
 ## Packaging
 
 RutOS 7.25.3 on the tested RUTX14 reports opkg 0.6.3/libsolv, package root
@@ -54,7 +58,34 @@ The currently retained daemon may log different services from one Axiom repeated
 The log is not evidence of a disconnect/reconnect cycle. Diagnose app traffic with
 packet captures on the home LAN and boat VXLAN/bridge, including IPv4 and IPv6
 mDNS queries and routed connections to the Axiom. No speculative network changes
-are included in this maintenance release.
+are included in the current package. The public Services/Devices layout does not
+alter any of these packet paths; see [networking](networking.md).
+
+## Diagnose the current installation
+
+The current management asset names are versioned separately from the stable API
+route. The endpoint identifier `v1100` is intentionally retained in 1.2.2.
+
+```sh
+opkg status tlt_custom_pkg_yachtsense-link-emulator
+/usr/local/usr/sbin/yachtsense-link-emulator --api status
+ubus -v list yachtsense-link-emulator
+ubus call yachtsense-link-emulator status '{}'
+api get /yachtsense-link-emulator-v1100/status
+curl --max-time 5 http://127.0.0.1:8088/api/status
+```
+
+Inspect `http_code`, `success` and the application result. The `api` CLI may exit
+successfully while its HTTP result is an error. The public endpoint additionally
+reports `ready` and `stale`, because router telemetry is collected asynchronously.
+A running daemon with a failed web adapter should not be mistaken for a stopped
+service. Port 8088 belongs to the public page; 7777 is a health response, not a
+second instance of the dashboard.
+
+A package of the same or an older version is not an upgrade. Use the new versioned
+release instead of removing a working package to defeat that check. If upload
+still fails, collect its actual Package Manager/opkg error rather than assuming
+an architecture, signature or dependency bypass is needed.
 
 References:
 - Teltonika RutOS code: https://github.com/wirelane/teltonika-gpl-sdk-rut951

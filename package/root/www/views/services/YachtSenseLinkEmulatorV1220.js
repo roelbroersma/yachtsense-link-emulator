@@ -1,4 +1,4 @@
-/* YachtSense Link Emulator UI 1.2.0: observed status, explicit choices, no network
+/* YachtSense Link Emulator UI 1.2.2: observed status, explicit choices, no network
  * mutation by default. No inline CSS, remote assets or private VuCI widgets. */
 const h = globalThis.Vue?.h;
 const API = "/api/yachtsense-link-emulator-v1100";
@@ -13,7 +13,7 @@ export function unwrap(value, predicate, depth=0) {
 }
 const resultOf = (v) => unwrap(v,(x)=>typeof x.ok==="boolean");
 function messageOf(error) { const data=error?.response?.data;const body=resultOf(data);const details=array(data?.errors).map(e=>e.error||e.message).filter(Boolean).join("; ");if(error?.response?.status===403)return details||"RutOS denied access (403). Sign in again after updating the package to refresh your permissions.";return body?.message||details||(error?.code==="ECONNABORTED"?"The request timed out. The previous status is no longer considered current.":error?.message)||"Request failed"; }
-function stylesheet() { const id="ysle-1200-css";if(document.getElementById(id))return;const link=document.createElement("link");link.id=id;link.rel="stylesheet";link.href="/assets/yachtsense-link-emulator-v1200.css";document.head.appendChild(link); }
+function stylesheet() { const id="ysle-1220-css";if(document.getElementById(id))return;const link=document.createElement("link");link.id=id;link.rel="stylesheet";link.href="/assets/yachtsense-link-emulator-v1220.css";document.head.appendChild(link); }
 const modeLabel = (s) => ({auto:"Automatic",builtin:"Built-in relay",avahi:"Existing Avahi reflector",direct:"Direct discovery",disabled:"Relay disabled",conflict:"Reflector conflict"}[s] || "Not active");
 export default {
   name:"YachtSenseLinkEmulatorV1100",
@@ -147,7 +147,7 @@ export default {
  h("h4","Individual components"),this.toggle("mdns_enabled","YachtSense identity publisher","Normally on; disabling it may prevent Axiom from finding the emulator."),this.toggle("web_enabled","HTTP health response","Normally on; this is a local liveness response, not an internet connectivity test.")
       ])]),
       h("details",{class:"ys-details",open:this.diagnosticsOpen,onToggle:e=>{this.diagnosticsOpen=e.target.open;if(e.target.open)this.loadDiagnostics();}},[h("summary","Diagnostics & logs"),this.diagnosticsOpen?this.diagnosticsView():null]),
-      h("footer",{class:"ys-footer"},`Package ${s.package_version||"1.2.0"} · UI 1.2.0 · Settings stored on this router`),
+      h("footer",{class:"ys-footer"},`Package ${s.package_version||"1.2.2"} · UI 1.2.2 · Settings stored on this router`),
       dirty?h("div",{class:"ys-savebar",role:"region","aria-label":"Unsaved settings"},[h("span","Unsaved changes"),h("div",[this.button("Cancel",()=>this.discard(),"secondary",!!this.busy),this.button(this.busy==="save"?"Saving…":"Save changes",()=>this.save(),"primary",disabled)])]):null
     ]);
   }

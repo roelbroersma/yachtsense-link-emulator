@@ -1,3 +1,19 @@
+# Changelog
+
+## 1.2.2 — 2026-09-30
+
+- Move RayNet into Services as one interface/address and emulator-state row.
+- Remove the standalone public RayNet card and Built-in relay/Avahi display row.
+- Keep Axiom, Cerbo GX, Wi-Fi and wired hosts in Devices; leave forwarding and discovery logic unchanged.
+- Restore purpose-first documentation covering wired Axiom internet, app discovery, dashboard use and VPN/routing requirements.
+- Review every Markdown guide, distinguish field observations from unverified app connectivity, and explain ports 8088 versus 7777.
+- Add dashboard regression tests and use new 1.2.2 package metadata and management asset names.
+
+## 1.2.1 — local test only
+
+- Increase package/program versions and refresh management asset names so a new upload is newer than 1.2.0.
+- No functionality change; this test build was supplied directly, not published as a GitHub release.
+
 ## 1.2.0 — 2026-09-30
 
 - Add a compact, login-free, read-only router dashboard on port 8088, advertised through YachtSense; health stays on its separate port.
@@ -8,8 +24,6 @@
 - Preserve the complete 1.1.2 installation and RPC permission fixes; add HTTP, telemetry and browser tests.
 
 New telemetry and Axiom page integration require real-device validation.
-
-# Changelog
 
 ## 1.1.2 — 2026-09-30
 

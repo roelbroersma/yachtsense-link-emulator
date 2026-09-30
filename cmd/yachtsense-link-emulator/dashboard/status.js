@@ -48,8 +48,14 @@
    var l=row(root,[v.name,v.kind].filter(Boolean).join(" · "),null,label,on?"good":"off");details(l,[["Time",seconds(v.uptime)],["RX",bytes(v.rx_bytes)],["TX",bytes(v.tx_bytes)]]);
   });
  }
- function showServices(v) {
-  var root=clear("services");row(root,"RMS",null,v.rms==="connected"?"Connected":v.rms==="disconnected"?"Offline":"Unknown",v.rms==="connected"?"good":"off");
+ function showServices(v, e, stale) {
+  var root=clear("services"),raynet=[];
+  // RayNet describes the service/interface; individual hosts belong in Devices.
+  if(valid(e.raynet))raynet.push(e.raynet);
+  if(valid(e.cidr))raynet.push(e.cidr);
+  var known=!stale && typeof e.running==="boolean";
+  row(root,"RayNet",raynet.join(" · "),known?(e.running?"Running":"Offline"):"Unknown",known&&e.running?"good":"off");
+  row(root,"RMS",null,v.rms==="connected"?"Connected":v.rms==="disconnected"?"Offline":"Unknown",v.rms==="connected"?"good":"off");
   arr(v.vxlan).forEach(function(x){var l=row(root,(x.name||"VXLAN")+" · VXLAN",null,x.up?"Up":"Down",x.up?"good":"off");details(l,[["VNI",x.vni],["RX",bytes(x.rx_bytes)],["TX",bytes(x.tx_bytes)]]);});
  }
  function showDevices() {
@@ -65,10 +71,8 @@
   var v=payload.router||{},e=payload.emulator||{};
   if(!payload.ready){text(el("notice"),"Loading…");el("notice").hidden=false;return;}
   last=payload;el("content").hidden=false;el("notice").hidden=!payload.stale;if(payload.stale)text(el("notice"),"Status unavailable");
-  showInternet(v.internet);showGPS(v.gps);showWifi(v.wifi);showVPN(v.vpn);showServices(v);
+  showInternet(v.internet);showGPS(v.gps);showWifi(v.wifi);showVPN(v.vpn);showServices(v,e,payload.stale);
   el("profile-card").hidden=!valid(v.profile);text(el("profile"),v.profile);
-  clear("emulator-state").appendChild(badge(e.running?"Running":"Offline",e.running?"good":"off"));
-  var er=clear("emulator");if(e.raynet)row(er,e.raynet,e.cidr);if(e.axiom)row(er,"Axiom",e.axiom);if(e.discovery)row(er,e.discovery==="builtin"?"Built-in relay":e.discovery==="avahi"?"Avahi":e.discovery,null,e.relay?"Active":null,e.relay?"good":"off");
   devices=arr(v.devices);showDevices();text(el("logs"),arr(v.logs).join("\n")||"No entries");
   text(el("version"),"v"+(e.version||"")+(v.firmware?" · "+v.firmware:""));
   var t=new Date(v.observed_at);text(el("updated"),isNaN(t.getTime())?"":t.toLocaleTimeString());

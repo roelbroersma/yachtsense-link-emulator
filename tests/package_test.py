@@ -73,8 +73,8 @@ check('Session read access excludes mutations',set(session['read']['ubus']['yach
 check('Session write access is separate',set(session['write']['ubus']['yachtsense-link-emulator'])==METHODS-{'status','diagnostics'})
 check('API ACL supports normalized trailing slash','/yachtsense-link-emulator-v1100/status/' in session['read']['api'])
 menu=json.loads(data['usr/share/vuci/menu.d/yachtsense-link-emulator.json'][0]);view=menu['services/yachtsense-link-emulator']['view']
-check('Versioned menu view is shipped','www/views/'+view+'.js' in data and view.endswith('V1200'))
-check('New stylesheet URL exists','www/assets/yachtsense-link-emulator-v1200.css' in data)
+check('Versioned menu view is shipped','www/views/'+view+'.js' in data and view.endswith('V1220'))
+check('New stylesheet URL exists','www/assets/yachtsense-link-emulator-v1220.css' in data)
 routes=json.loads(data['usr/share/vuci/path.d/yachtsense-link-emulator.json'][0])
 check('Each route has a shipped adapter',all('usr/lib/lua/api/'+module+'.lua' in data for item in routes for module in item.values()))
 reload=data['usr/libexec/yachtsense-link-emulator-reload-ui'][0].decode()
