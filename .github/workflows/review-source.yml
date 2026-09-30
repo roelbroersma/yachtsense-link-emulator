@@ -1,0 +1,26 @@
+name: Source snapshot for dashboard review
+on:
+  push:
+    branches: [release/ui-docs-1.2.2]
+    paths: [.github/workflows/review-source.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Export tracked source and earlier documentation
+        run: |
+          mkdir -p review
+          git archive --format=tar.gz --output=review/current-source.tar.gz HEAD
+          git show v1.0.13:README.md > review/README-v1.0.13.md
+          git rev-parse HEAD > review/BASE_COMMIT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yachtsense-review-source
+          path: review/
+          retention-days: 3
