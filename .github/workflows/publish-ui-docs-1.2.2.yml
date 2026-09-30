@@ -1,0 +1,91 @@
+name: Validate and release YachtSense 1.2.2
+on:
+  push:
+    branches: [release/ui-docs-1.2.2]
+    paths: [.github/workflows/publish-ui-docs-1.2.2.yml]
+permissions:
+  contents: write
+concurrency:
+  group: yachtsense-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.5'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply the exact locally reviewed source delta
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = b15e1a334f75b5e5a613c742827704badaa5eebf
+          python3 - <<'PY'
+          import base64, hashlib, lzma, os, pathlib, subprocess
+          parts = [subprocess.check_output(['git', 'show', f'{os.environ["SOURCE_SHA"]}:release/1.2.2.patch.xz.b64.{i}']).strip() for i in range(1, 5)]
+          delta = lzma.decompress(base64.b64decode(b''.join(parts), validate=True))
+          assert hashlib.sha256(delta).hexdigest() == '2ce641ab6fc4b29d0bf421bf7ba1049a92b96d78b97b5f4100cf475c1db53f52'
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'yachtsense-1.2.2.patch'
+          path.write_bytes(delta)
+          subprocess.run(['git', 'apply', '--check', '--unidiff-zero', str(path)], check=True)
+          subprocess.run(['git', 'apply', '--index', '--unidiff-zero', str(path)], check=True)
+          PY
+          test "$(git write-tree)" = f2994af9b024e6f27f0e0c74d53f602bbd1e3435
+          git diff --cached --check
+      - name: Install test runtimes
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y luajit
+          python3 -m pip install 'playwright==1.57.0'
+      - name: Test source, documentation and actual ARM release archives
+        env:
+          LUA_TEST: luajit
+        run: |
+          set -euo pipefail
+          bash scripts/check.sh | tee "$RUNNER_TEMP/yachtsense-check.log"
+          export CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)"
+          test -n "$CHROMIUM_PATH"
+          python3 tests/dashboard_browser_test.py
+          test "$(git write-tree)" = f2994af9b024e6f27f0e0c74d53f602bbd1e3435
+          git diff --exit-code
+      - name: Commit only the tested source and documentation on main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = b15e1a334f75b5e5a613c742827704badaa5eebf
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Release 1.2.2: simplify RayNet service display and restore purpose-first documentation'
+          git push origin HEAD:main
+      - name: Publish the WebUI package and CLI alternative
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create v1.2.2 \
+            dist/yachtsense-link-emulator_1.2.2-1_RUTX_00.07.25.3.tar.gz \
+            build/tlt_custom_pkg_yachtsense-link-emulator_1.2.2-1_cortexa7hf-neon-vfpv4.ipk \
+            --target "$(git rev-parse HEAD)" \
+            --title 'YachtSense Link Emulator 1.2.2 — RUTX14 / RutOS 7.25.3' \
+            --notes-file RELEASE.md --latest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release-1.2.2
+          path: |
+            dist/*.tar.gz
+            build/*.ipk
+            build/dashboard-*.png
+          retention-days: 14
