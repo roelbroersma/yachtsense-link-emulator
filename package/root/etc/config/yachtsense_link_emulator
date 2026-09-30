@@ -20,3 +20,8 @@ config emulator 'main'
  option health_port '7777'
  option log_level 'info'
  option log_lines '40'
+
+	option dashboard_enabled '1'
+	option dashboard_port '8088'
+	option dashboard_allow_all '1'
+	option dashboard_allowed_cidrs '192.168.4.0/24'

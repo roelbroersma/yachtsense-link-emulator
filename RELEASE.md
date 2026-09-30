@@ -1,5 +1,9 @@
-Voor **Teltonika RUTX14 met RutOS RUTX_R_00.07.25.3**.
+Voor **RUTX14 · RutOS RUTX_R_00.07.25.3**.
 
-Upload de **.tar.gz zonder uitpakken** via **System → Package Manager → Upload package**; vooraf verwijderen is niet nodig en bestaande instellingen blijven behouden. Wacht circa 20 seconden en log opnieuw in.
+Upload de **.tar.gz zonder uitpakken** via **System → Package Manager → Upload package**; vooraf verwijderen is niet nodig. Wacht circa 20 seconden en log opnieuw in.
 
-Bevat de complete WebUI-installatie- en RPC-rechtenfix, inclusief de bij jou bevestigde `publish`- én `access`-rechten. De **.ipk** is uitsluitend de alternatieve CLI-installatie. De nieuwe bundel is lokaal en in CI getest; installatie van deze geconsolideerde versie op de router is nog te bevestigen.
+Nieuwe compacte, loginvrije statuspagina op **http://192.168.40.1:8088/** (LAN/VPN) of **http://198.18.0.1:8088/** (RayNet): actieve WAN en signaal, boordwifi, apparaten, profiel, GPS/geofences, VPN, RMS en VXLAN. Lege velden en uitgeschakelde verbindingen blijven weg; beheer blijft achter de routerlogin.
+
+**Allow all source networks** staat voor deze testversie aan; bestaande firewallregels blijven van kracht. De **.ipk** is de CLI-installatieoptie.
+
+Automatisch en met gesimuleerde browserdata getest; de nieuwe statusmetingen en het openen vanuit de Axiom moeten nog op de router worden bevestigd.

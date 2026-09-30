@@ -1,3 +1,11 @@
+# Router status dashboard — 1.2.0
+
+For RUTX14 / RutOS RUTX_R_00.07.25.3. Upload the release `.tar.gz` without extracting or removing the previous package. The new read-only page is available at `http://192.168.40.1:8088/` (LAN/VPN) and `http://198.18.0.1:8088/` (RayNet), subject to existing firewall rules. `Manage` retains normal router authentication.
+
+The status-page configuration includes enable, port, **Allow all source networks** (on for this requested test release), and extra source CIDRs when restriction is enabled. See [public status](docs/public-status.md) for data sources, limits, tests and deployment details.
+
+The new page and parsers are tested with synthetic telemetry; observations from the actual router remain to be checked. Existing v1.1.2 integration documentation follows.
+
 # YachtSense Link Emulator
 
 **Release 1.1.2 — Teltonika RUTX14, RutOS RUTX_R_00.07.25.3.**

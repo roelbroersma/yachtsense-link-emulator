@@ -28,31 +28,35 @@ const serviceName = "yachtsense-link-emulator"
 var packageVersion = "development"
 
 type Settings struct {
-	Enabled          bool     `json:"enabled"`
-	MDNS             bool     `json:"mdns_enabled"`
-	HTTP             bool     `json:"web_enabled"`
-	RaynetMode       string   `json:"raynet_mode"`
-	AppMode          string   `json:"app_mode"`
-	AxiomInterface   string   `json:"axiom_interface"`
-	RemoteInterfaces []string `json:"remote_interfaces"`
-	DiscoveryMode    string   `json:"discovery_mode"`
-	ManageIP         bool     `json:"manage_ip"`
-	IP               string   `json:"ipaddr"`
-	Prefix           int      `json:"prefix"`
-	RemoveIP         bool     `json:"remove_ip_on_stop"`
-	Serial           string   `json:"serial"`
-	Version          string   `json:"version"`
-	Hostname         string   `json:"hostname"`
-	Instance         string   `json:"instance"`
-	TTL              int      `json:"ttl"`
-	HealthPort       int      `json:"health_port"`
-	LogLevel         string   `json:"log_level"`
-	LogLines         int      `json:"log_lines"`
+	Enabled           bool     `json:"enabled"`
+	MDNS              bool     `json:"mdns_enabled"`
+	HTTP              bool     `json:"web_enabled"`
+	RaynetMode        string   `json:"raynet_mode"`
+	AppMode           string   `json:"app_mode"`
+	AxiomInterface    string   `json:"axiom_interface"`
+	RemoteInterfaces  []string `json:"remote_interfaces"`
+	DiscoveryMode     string   `json:"discovery_mode"`
+	ManageIP          bool     `json:"manage_ip"`
+	IP                string   `json:"ipaddr"`
+	Prefix            int      `json:"prefix"`
+	RemoveIP          bool     `json:"remove_ip_on_stop"`
+	Serial            string   `json:"serial"`
+	Version           string   `json:"version"`
+	Hostname          string   `json:"hostname"`
+	Instance          string   `json:"instance"`
+	TTL               int      `json:"ttl"`
+	HealthPort        int      `json:"health_port"`
+	LogLevel          string   `json:"log_level"`
+	LogLines          int      `json:"log_lines"`
+	Dashboard         bool     `json:"dashboard_enabled"`
+	DashboardPort     int      `json:"dashboard_port"`
+	DashboardAllowAll bool     `json:"dashboard_allow_all"`
+	DashboardCIDRs    string   `json:"dashboard_allowed_cidrs"`
 }
 type Paths struct{ Prefix, ConfigDir, StateDir, Executable, Init, UCI, IP string }
 
 func defaultSettings() Settings {
-	return Settings{MDNS: true, HTTP: true, RaynetMode: "auto", AppMode: "auto", AxiomInterface: "br-lan", RemoteInterfaces: []string{"br-lan"}, DiscoveryMode: "auto", IP: "198.18.0.1", Prefix: 21, Serial: "AF002A4", Version: "V142.242.530", Hostname: "yachtsense-main", Instance: "yachtsense-main Settings", TTL: 120, HealthPort: 7777, LogLevel: "info", LogLines: 40}
+	return Settings{Dashboard: true, DashboardPort: 8088, DashboardAllowAll: true, DashboardCIDRs: "192.168.4.0/24", MDNS: true, HTTP: true, RaynetMode: "auto", AppMode: "auto", AxiomInterface: "br-lan", RemoteInterfaces: []string{"br-lan"}, DiscoveryMode: "auto", IP: "198.18.0.1", Prefix: 21, Serial: "AF002A4", Version: "V142.242.530", Hostname: "yachtsense-main", Instance: "yachtsense-main Settings", TTL: 120, HealthPort: 7777, LogLevel: "info", LogLines: 40}
 }
 func findProgram(paths ...string) string {
 	for _, p := range paths {
@@ -208,13 +212,13 @@ func settingsFrom(data []byte) (Settings, error) {
 		}
 		return a[len(a)-1], true
 	}
-	stringsByKey := map[string]*string{"raynet_mode": &c.RaynetMode, "app_mode": &c.AppMode, "axiom_interface": &c.AxiomInterface, "discovery_mode": &c.DiscoveryMode, "ipaddr": &c.IP, "serial": &c.Serial, "version": &c.Version, "hostname": &c.Hostname, "instance": &c.Instance, "log_level": &c.LogLevel}
+	stringsByKey := map[string]*string{"raynet_mode": &c.RaynetMode, "app_mode": &c.AppMode, "axiom_interface": &c.AxiomInterface, "discovery_mode": &c.DiscoveryMode, "ipaddr": &c.IP, "serial": &c.Serial, "version": &c.Version, "hostname": &c.Hostname, "instance": &c.Instance, "log_level": &c.LogLevel, "dashboard_allowed_cidrs": &c.DashboardCIDRs}
 	for k, p := range stringsByKey {
 		if s, ok := get(k); ok {
 			*p = s
 		}
 	}
-	for k, p := range map[string]*bool{"enabled": &c.Enabled, "mdns_enabled": &c.MDNS, "web_enabled": &c.HTTP, "manage_ip": &c.ManageIP, "remove_ip_on_stop": &c.RemoveIP} {
+	for k, p := range map[string]*bool{"enabled": &c.Enabled, "mdns_enabled": &c.MDNS, "web_enabled": &c.HTTP, "manage_ip": &c.ManageIP, "remove_ip_on_stop": &c.RemoveIP, "dashboard_enabled": &c.Dashboard, "dashboard_allow_all": &c.DashboardAllowAll} {
 		if s, ok := get(k); ok {
 			*p, e = asBool(s)
 			if e != nil {
@@ -222,7 +226,7 @@ func settingsFrom(data []byte) (Settings, error) {
 			}
 		}
 	}
-	for k, p := range map[string]*int{"prefix": &c.Prefix, "ttl": &c.TTL, "health_port": &c.HealthPort, "log_lines": &c.LogLines} {
+	for k, p := range map[string]*int{"prefix": &c.Prefix, "ttl": &c.TTL, "health_port": &c.HealthPort, "log_lines": &c.LogLines, "dashboard_port": &c.DashboardPort} {
 		if s, ok := get(k); ok {
 			*p, e = strconv.Atoi(s)
 			if e != nil {
@@ -283,6 +287,19 @@ func printable(s string, max int) bool {
 	return true
 }
 func validateSettings(c Settings) error {
+	if c.DashboardPort < 1024 || c.DashboardPort > 65535 || c.DashboardPort == c.HealthPort {
+		return errors.New("dashboard port must be 1024..65535 and different from the health port")
+	}
+	if len(c.DashboardCIDRs) > 1024 {
+		return errors.New("dashboard source list is too long")
+	}
+	for _, v := range strings.FieldsFunc(c.DashboardCIDRs, func(r rune) bool { return r == ',' || unicode.IsSpace(r) }) {
+		p, err := netip.ParsePrefix(v)
+		if err != nil || !p.Addr().Is4() {
+			return errors.New("dashboard sources must be IPv4 CIDR networks")
+		}
+	}
+
 	if c.RaynetMode != "auto" && c.RaynetMode != "manual" {
 		return errors.New("invalid RayNet mode")
 	}
@@ -432,7 +449,7 @@ func writeSettings(p Paths, c Settings) error {
 	if e = os.Mkdir(filepath.Join(stage, "delta"), 0700); e != nil {
 		return e
 	}
-	values := map[string]string{"enabled": boolText(c.Enabled), "mdns_enabled": boolText(c.MDNS), "web_enabled": boolText(c.HTTP), "raynet_mode": c.RaynetMode, "app_mode": c.AppMode, "axiom_interface": c.AxiomInterface, "discovery_mode": c.DiscoveryMode, "manage_ip": boolText(c.ManageIP), "ipaddr": c.IP, "prefix": strconv.Itoa(c.Prefix), "remove_ip_on_stop": boolText(c.RemoveIP), "serial": c.Serial, "version": c.Version, "hostname": c.Hostname, "instance": c.Instance, "ttl": strconv.Itoa(c.TTL), "health_port": strconv.Itoa(c.HealthPort), "log_level": c.LogLevel, "log_lines": strconv.Itoa(c.LogLines)}
+	values := map[string]string{"enabled": boolText(c.Enabled), "mdns_enabled": boolText(c.MDNS), "web_enabled": boolText(c.HTTP), "raynet_mode": c.RaynetMode, "app_mode": c.AppMode, "axiom_interface": c.AxiomInterface, "discovery_mode": c.DiscoveryMode, "manage_ip": boolText(c.ManageIP), "ipaddr": c.IP, "prefix": strconv.Itoa(c.Prefix), "remove_ip_on_stop": boolText(c.RemoveIP), "serial": c.Serial, "version": c.Version, "hostname": c.Hostname, "instance": c.Instance, "ttl": strconv.Itoa(c.TTL), "health_port": strconv.Itoa(c.HealthPort), "log_level": c.LogLevel, "log_lines": strconv.Itoa(c.LogLines), "dashboard_enabled": boolText(c.Dashboard), "dashboard_port": strconv.Itoa(c.DashboardPort), "dashboard_allow_all": boolText(c.DashboardAllowAll), "dashboard_allowed_cidrs": c.DashboardCIDRs}
 	var script strings.Builder
 	fmt.Fprintf(&script, "set %s.main=emulator\n", configName)
 	keys := make([]string, 0, len(values))

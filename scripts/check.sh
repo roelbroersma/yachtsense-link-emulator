@@ -4,7 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 go test -race -count=1 ./...
 go vet ./...
-node --check --input-type=module < package/root/www/views/services/YachtSenseLinkEmulatorV1120.js
+node --check --input-type=module < package/root/www/views/services/YachtSenseLinkEmulatorV1200.js
+node --check cmd/yachtsense-link-emulator/dashboard/status.js
 node tests/ui_test.mjs
 "${LUA_TEST:-texlua}" tests/lua_adapter_test.lua
 "${LUA_TEST:-texlua}" tests/rpc_helper_test.lua

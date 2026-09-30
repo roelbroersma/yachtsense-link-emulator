@@ -1,5 +1,5 @@
 // YachtSense protocol implementation adapted from Roel Broersma's v1.0.13.
-// Names, identity TXT records and the SRV port preserve the existing emulator.
+// Identity and health remain compatible; the SRV port may select the read-only dashboard.
 package main
 
 import (
@@ -54,6 +54,7 @@ type configuration struct {
 	RemoteInterfaces                     []string
 	Serial, Version, HostLabel, Instance string
 	HealthPort                           int
+	DashboardPort                        int
 	MDNSEnabled, WebEnabled              bool
 	TTL                                  uint32
 	RelayMode                            string
@@ -212,8 +213,13 @@ func buildAnnouncement(c configuration, iface *net.Interface, ip net.IP, ttl uin
 	if e != nil {
 		return nil, e
 	}
-	// SRV 80 is identity metadata; the independent Axiom health listener is 7777.
-	srv := append([]byte{0, 0, 0, 0, 0, 80}, hw...)
+	// Keep health on its separate port; advertise the dashboard as the router page.
+	port := c.DashboardPort
+	if port == 0 {
+		port = 80
+	}
+	srv := appendUint16([]byte{0, 0, 0, 0}, uint16(port))
+	srv = append(srv, hw...)
 	p := make([]byte, 12)
 	binary.BigEndian.PutUint16(p[2:4], 0x8400)
 	binary.BigEndian.PutUint16(p[6:8], 5)

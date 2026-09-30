@@ -1,10 +1,10 @@
-/* YachtSense Link Emulator UI 1.1.2: observed status, explicit choices, no network
+/* YachtSense Link Emulator UI 1.2.0: observed status, explicit choices, no network
  * mutation by default. No inline CSS, remote assets or private VuCI widgets. */
 const h = globalThis.Vue?.h;
 const API = "/api/yachtsense-link-emulator-v1100";
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const array = (v) => Array.isArray(v) ? v : [];
-const defaults = () => ({enabled:false,mdns_enabled:true,web_enabled:true,raynet_mode:"auto",app_mode:"auto",axiom_interface:"br-lan",remote_interfaces:["br-lan"],discovery_mode:"auto",manage_ip:false,ipaddr:"198.18.0.1",prefix:21,remove_ip_on_stop:false,serial:"AF002A4",version:"V142.242.530",hostname:"yachtsense-main",instance:"yachtsense-main Settings",ttl:120,health_port:7777,log_level:"info",log_lines:40});
+const defaults = () => ({enabled:false,mdns_enabled:true,web_enabled:true,raynet_mode:"auto",app_mode:"auto",axiom_interface:"br-lan",remote_interfaces:["br-lan"],discovery_mode:"auto",manage_ip:false,ipaddr:"198.18.0.1",prefix:21,remove_ip_on_stop:false,serial:"AF002A4",version:"V142.242.530",hostname:"yachtsense-main",instance:"yachtsense-main Settings",ttl:120,health_port:7777,log_level:"info",log_lines:40,dashboard_enabled:true,dashboard_port:8088,dashboard_allow_all:true,dashboard_allowed_cidrs:"192.168.4.0/24"});
 export function unwrap(value, predicate, depth=0) {
   if (!value || typeof value !== "object" || depth>8) return null;
   if (predicate(value)) return value;
@@ -13,7 +13,7 @@ export function unwrap(value, predicate, depth=0) {
 }
 const resultOf = (v) => unwrap(v,(x)=>typeof x.ok==="boolean");
 function messageOf(error) { const data=error?.response?.data;const body=resultOf(data);const details=array(data?.errors).map(e=>e.error||e.message).filter(Boolean).join("; ");if(error?.response?.status===403)return details||"RutOS denied access (403). Sign in again after updating the package to refresh your permissions.";return body?.message||details||(error?.code==="ECONNABORTED"?"The request timed out. The previous status is no longer considered current.":error?.message)||"Request failed"; }
-function stylesheet() { const id="ysle-1120-css";if(document.getElementById(id))return;const link=document.createElement("link");link.id=id;link.rel="stylesheet";link.href="/assets/yachtsense-link-emulator-v1120.css";document.head.appendChild(link); }
+function stylesheet() { const id="ysle-1200-css";if(document.getElementById(id))return;const link=document.createElement("link");link.id=id;link.rel="stylesheet";link.href="/assets/yachtsense-link-emulator-v1200.css";document.head.appendChild(link); }
 const modeLabel = (s) => ({auto:"Automatic",builtin:"Built-in relay",avahi:"Existing Avahi reflector",direct:"Direct discovery",disabled:"Relay disabled",conflict:"Reflector conflict"}[s] || "Not active");
 export default {
   name:"YachtSenseLinkEmulatorV1100",
@@ -136,11 +136,18 @@ export default {
         h("p",{class:"ys-note"},"Normally no changes are needed here. Address management changes the selected interface only when explicitly enabled."),
         this.toggle("manage_ip","Manage the RayNet address","Off means observe only; an existing address is never claimed or removed.",(on)=>this.manageAddress(on)),
         this.form.manage_ip?this.toggle("remove_ip_on_stop","Remove an address added by this package on stop","An address that already existed is never removed."):null,
-        h("div",{class:"ys-form-grid"},[this.field("ipaddr","RayNet address to find","text","Normally 198.18.0.1"),this.field("prefix","Prefix for explicitly added addresses","number","Automatic detection uses the prefix already present.",{min:0,max:32}),this.field("serial","YachtSense serial"),this.field("version","Advertised firmware string"),this.field("hostname","mDNS hostname"),this.field("instance","Service instance"),this.field("health_port","HTTP health port","number","This does not change the advertised SRV identity port 80.",{min:1,max:65535}),this.field("ttl","Advertisement TTL (seconds)","number","",{min:1,max:86400}),this.field("log_lines","Lines in Diagnostics","number","",{min:5,max:200}),h("label",{class:"ys-field"},[h("span","Log detail"),h("select",{value:this.form.log_level,disabled:!!this.busy||!this.statusValid,onChange:e=>this.mark("log_level",e.target.value)},[h("option",{value:"info"},"Info"),h("option",{value:"debug"},"Debug")])])]),
-        h("h4","Individual components"),this.toggle("mdns_enabled","YachtSense identity publisher","Normally on; disabling it may prevent Axiom from finding the emulator."),this.toggle("web_enabled","HTTP health response","Normally on; this is a local liveness response, not an internet connectivity test.")
+        h("div",{class:"ys-form-grid"},[this.field("ipaddr","RayNet address to find","text","Normally 198.18.0.1"),this.field("prefix","Prefix for explicitly added addresses","number","Automatic detection uses the prefix already present.",{min:0,max:32}),this.field("serial","YachtSense serial"),this.field("version","Advertised firmware string"),this.field("hostname","mDNS hostname"),this.field("instance","Service instance"),this.field("health_port","HTTP health port","number","Separate from the read-only status page.",{min:1,max:65535}),this.field("ttl","Advertisement TTL (seconds)","number","",{min:1,max:86400}),this.field("log_lines","Lines in Diagnostics","number","",{min:5,max:200}),h("label",{class:"ys-field"},[h("span","Log detail"),h("select",{value:this.form.log_level,disabled:!!this.busy||!this.statusValid,onChange:e=>this.mark("log_level",e.target.value)},[h("option",{value:"info"},"Info"),h("option",{value:"debug"},"Debug")])])]),
+        h("h4","Status page"),
+ this.toggle("dashboard_enabled","Read-only status page"),
+ this.toggle("dashboard_allow_all","Allow all source networks"),
+ h("div",{class:"ys-form-grid"},[
+  this.field("dashboard_port","Status port","number","",{min:1024,max:65535}),
+  this.form.dashboard_allow_all?null:this.field("dashboard_allowed_cidrs","Additional source networks","text","IPv4 CIDRs, comma-separated")
+ ]),
+ h("h4","Individual components"),this.toggle("mdns_enabled","YachtSense identity publisher","Normally on; disabling it may prevent Axiom from finding the emulator."),this.toggle("web_enabled","HTTP health response","Normally on; this is a local liveness response, not an internet connectivity test.")
       ])]),
       h("details",{class:"ys-details",open:this.diagnosticsOpen,onToggle:e=>{this.diagnosticsOpen=e.target.open;if(e.target.open)this.loadDiagnostics();}},[h("summary","Diagnostics & logs"),this.diagnosticsOpen?this.diagnosticsView():null]),
-      h("footer",{class:"ys-footer"},`Package ${s.package_version||"1.1.2"} · UI 1.1.2 · Settings stored on this router`),
+      h("footer",{class:"ys-footer"},`Package ${s.package_version||"1.2.0"} · UI 1.2.0 · Settings stored on this router`),
       dirty?h("div",{class:"ys-savebar",role:"region","aria-label":"Unsaved settings"},[h("span","Unsaved changes"),h("div",[this.button("Cancel",()=>this.discard(),"secondary",!!this.busy),this.button(this.busy==="save"?"Saving…":"Save changes",()=>this.save(),"primary",disabled)])]):null
     ]);
   }

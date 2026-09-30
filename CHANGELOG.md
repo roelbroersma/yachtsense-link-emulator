@@ -1,3 +1,14 @@
+## 1.2.0 — 2026-09-30
+
+- Add a compact, login-free, read-only router dashboard on port 8088, advertised through YachtSense; health stays on its separate port.
+- Show the actual default-policy failover uplink and its received RSSI, real interface names, optional public IPv4, onboard SSIDs, Wi-Fi and wired/known devices.
+- Add the actual RutOS profile, GPS/named geofences, VPN timers/counters, RMS and VXLAN status.
+- Hide absent SIMs, disabled WANs, missing IP fields, policy weights and redundant explanatory text.
+- Add configurable source-network access, initially allowing all sources for the requested VPN test without changing firewall rules or admin authentication.
+- Preserve the complete 1.1.2 installation and RPC permission fixes; add HTTP, telemetry and browser tests.
+
+New telemetry and Axiom page integration require real-device validation.
+
 # Changelog
 
 ## 1.1.2 — 2026-09-30

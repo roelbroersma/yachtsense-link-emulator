@@ -787,6 +787,9 @@ func runDaemon(ctx context.Context, p Paths) error {
 		state.flush()
 	}()
 	cfg := configuration{AxiomInterface: r.Raynet, AxiomIP: net.ParseIP(c.IP), RemoteInterfaces: r.Apps, Serial: c.Serial, Version: c.Version, HostLabel: c.Hostname, Instance: c.Instance, HealthPort: c.HealthPort, MDNSEnabled: c.MDNS, WebEnabled: c.HTTP, TTL: uint32(c.TTL), RelayMode: "disabled", ExistingReflector: mode == "avahi", LogLevel: c.LogLevel}
+	if c.Dashboard {
+		cfg.DashboardPort = c.DashboardPort
+	}
 	if relay {
 		cfg.RelayMode = "force"
 	}
@@ -814,6 +817,16 @@ func runDaemon(ctx context.Context, p Paths) error {
 			defer sc()
 			_ = h.Shutdown(sctx)
 		}()
+	}
+
+	if c.Dashboard {
+		d, stop, err := startDashboard(dc, p, c, r, state)
+		if err != nil {
+			log.Printf("ERROR dashboard unavailable: %s", err)
+		} else {
+			defer stop()
+			defer d.Close()
+		}
 	}
 	state.flush()
 	log.Printf("INFO ready package=%s raynet=%s apps=%s discovery=%s", packageVersion, r.Raynet, strings.Join(r.Apps, ","), mode)
