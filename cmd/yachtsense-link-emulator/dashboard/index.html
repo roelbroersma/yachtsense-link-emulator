@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YachtSense Link</title><link rel="stylesheet" href="/status.css">
+</head>
+<body>
+<main class="page">
+<header><div><div class="eyebrow">YACHTSENSE</div><h1>Link</h1></div><a id="manage" class="button" href="#">Manage</a></header>
+<div id="notice" class="notice" role="status">Loading…</div>
+<div id="content" hidden>
+<section class="card internet"><div class="heading"><h2>Internet</h2><span id="internet-state"></span></div><div id="links" class="links"></div></section>
+<div class="grid">
+<section class="card" id="profile-card"><div class="heading"><h2>Profile</h2></div><div id="profile" class="large"></div></section>
+<section class="card"><div class="heading"><h2>GPS</h2><span id="gps-state"></span></div><div id="gps"></div></section>
+<section class="card" id="wifi-card"><div class="heading"><h2>Onboard WiFi</h2></div><div id="wifi"></div></section>
+<section class="card" id="vpn-card"><div class="heading"><h2>VPN</h2></div><div id="vpn"></div></section>
+<section class="card"><div class="heading"><h2>Services</h2></div><div id="services"></div></section>
+<section class="card"><div class="heading"><h2>RayNet</h2><span id="emulator-state"></span></div><div id="emulator"></div></section>
+</div>
+<section class="card devices"><div class="heading"><h2>Devices <span id="device-count" class="count"></span></h2><input id="search" type="search" placeholder="Search" aria-label="Search devices"></div><div class="table-scroll"><table><thead><tr><th>Name</th><th>IP address</th><th>Connection</th><th>Status</th></tr></thead><tbody id="devices"></tbody></table></div></section>
+<details class="card logs"><summary>Logs</summary><pre id="logs"></pre></details>
+</div>
+<footer><span id="version"></span><span id="updated"></span></footer>
+</main><script src="/status.js" defer></script>
+</body></html>

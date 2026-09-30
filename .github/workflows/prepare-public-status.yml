@@ -1,0 +1,77 @@
+name: Build and publish compact router status 1.2.0
+on:
+  push:
+    branches: [release/public-status-1.2.0]
+permissions:
+  contents: write
+concurrency:
+  group: yachtsense-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BASE_SHA: 0e14bf9339fe442b8c8cb018cf48cdd632d750df
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.5'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install validation tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y luajit
+          python -m pip install playwright
+          python -m playwright install chromium --with-deps
+      - name: Prepare and validate release source
+        env:
+          LUA_TEST: luajit
+        run: |
+          python3 scripts/prepare-public-status-release.py
+          bash scripts/check.sh
+          python3 tests/dashboard_browser_test.py
+      - name: Commit only tested ordinary source on main
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git rm .github/workflows/prepare-public-status.yml scripts/prepare-public-status-release.py
+          git add VERSION README.md CHANGELOG.md RELEASE.md docs cmd package tests scripts
+          tree="$(git write-tree)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          sha="$(printf '%s\n' 'Release 1.2.0: compact read-only router dashboard with WAN, GPS, VPN and device telemetry' | git commit-tree "$tree" -p "$BASE_SHA")"
+          git push origin "$sha:refs/heads/main"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Publish WebUI package and CLI alternative
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v1.2.0 \
+            dist/yachtsense-link-emulator_1.2.0-1_RUTX_00.07.25.3.tar.gz \
+            build/tlt_custom_pkg_yachtsense-link-emulator_1.2.0-1_cortexa7hf-neon-vfpv4.ipk \
+            --target "$SOURCE_SHA" \
+            --title 'YachtSense Link Emulator 1.2.0 — RUTX14 / RutOS 7.25.3' \
+            --notes-file RELEASE.md --latest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release-1.2.0
+          path: |
+            dist/*.tar.gz
+            build/*.ipk
+            build/dashboard-*.png
